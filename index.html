@@ -1,0 +1,1830 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="theme-color" content="#1B3A1B">
+<title>Ringwood History Trail | Superspree RouteLoop</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<style>
+/* ═══════════════════════════════════════════════════════════
+   RINGWOOD HISTORY TRAIL  ·  Superspree RouteLoop™
+   Wayfinding Standard v3  ·  Build v3.0 — Coordinates verified against
+   Go New Forest Google My Maps source data (28 March 2024)
+   All 10 stop names, descriptions and lat/lng from authoritative source.
+
+   BRAND PALETTE
+   --brand-900  Deep Ringwood Green   #1B3A1B  (backgrounds, headers)
+   --brand-700  Forest Mid            #2A5C2A  (topbar border, accents)
+   --brand-500  Action Green          #3A7D44  (CTA buttons, links)
+   --brand-200  Light Forest          #6AAB72  (pulse dots, fills)
+   --brand-100  Pale Moss             #D6EDD8  (You Are Here, chips)
+   --brand-050  Wash                  #EDF7EE  (hover, tints)
+   --gold       Charter Gold          #C8962A  (800th anniversary, accents)
+   --gold-lt    Light Gold            #E8B84B  (gold highlights)
+   --red        Heritage Red          #8B1A1A  (charter badge, alerts)
+   --surface    Background            #F2F6F2  (screen backgrounds)
+   --white      Cards                 #FFFFFF
+   --ink        Dark text             #1B2B1B
+   --stone      Muted text            #5A6B5A
+   Emergency/Alert red fixed: #DA291C (§3.2 — non-customisable)
+═══════════════════════════════════════════════════════════ */
+:root {
+  --brand-900: #1B3A1B;
+  --brand-700: #2A5C2A;
+  --brand-500: #3A7D44;
+  --brand-200: #6AAB72;
+  --brand-100: #D6EDD8;
+  --brand-050: #EDF7EE;
+  --gold:      #C8962A;
+  --gold-lt:   #E8B84B;
+  --red:       #8B1A1A;
+  --red-alert: #DA291C;
+  --surface:   #F2F6F2;
+  --white:     #FFFFFF;
+  --ink:       #1B2B1B;
+  --stone:     #5A6B5A;
+
+  /* §3.1 — Nunito exclusively */
+  --font: 'Nunito', system-ui, sans-serif;
+
+  /* §3.4 radius scale */
+  --r-sm:  10px;
+  --r-md:  16px;
+  --r-lg:  22px;
+  --r-xl:  30px;
+
+  --shadow:    0 3px 16px rgba(27,42,27,0.12);
+  --shadow-lg: 0 8px 32px rgba(27,42,27,0.20);
+}
+
+/* §6.6 — Reduced motion */
+@media (prefers-reduced-motion: reduce) {
+  .pin-bounce, .pin-glow, .nfc-dot, .nfc-ring-outer { animation: none !important; }
+  .screen-entering { transition: opacity 200ms ease !important; transform: none !important; }
+  .site-card { transition: opacity 200ms ease; transform: none !important; }
+}
+
+*{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+html,body{height:100%;overflow:hidden}
+body{
+  font-family: var(--font);
+  background: var(--brand-900);
+  color: var(--ink);
+  height: 100dvh;
+  max-width: 430px;
+  margin: 0 auto;
+  position: relative;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+/* ════════════════════════════════════════════
+   SCREEN SYSTEM  (§4.1 — linear screen flow)
+   Screens transition: opacity fade + translateY
+════════════════════════════════════════════ */
+.screen {
+  display: none;
+  flex-direction: column;
+  height: 100%;
+  overflow: hidden;
+  position: absolute;
+  inset: 0;
+}
+.screen.active { display: flex; }
+.screen-entering {
+  animation: screenIn 280ms cubic-bezier(0.4,0,0.2,1) forwards;
+}
+@keyframes screenIn {
+  from { opacity: 0; transform: translateY(12px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+/* §3.5 — Venue Bar (topmost on all screens) */
+.venue-bar {
+  background: var(--brand-900);
+  padding: 12px 16px 10px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-shrink: 0;
+  border-bottom: 1px solid rgba(255,255,255,0.07);
+  position: relative;
+  z-index: 10;
+}
+.venue-bar-left { display: flex; align-items: center; gap: 10px; }
+.venue-badge {
+  width: 36px; height: 36px;
+  background: var(--gold);
+  border-radius: 50%;
+  display: flex; flex-direction: column;
+  align-items: center; justify-content: center;
+  border: 2px solid rgba(255,255,255,0.2);
+  flex-shrink: 0;
+}
+.venue-badge-yr { font-size: 9px; font-weight: 900; color: var(--ink); line-height: 1; }
+.venue-badge-txt { font-size: 5px; font-weight: 800; color: var(--ink); letter-spacing: 0.3px; text-align: center; text-transform: uppercase; line-height: 1.2; margin-top: 1px; }
+.venue-name { font-size: 13px; font-weight: 800; color: #fff; letter-spacing: 0.2px; }
+.venue-sub  { font-size: 9.5px; color: rgba(255,255,255,0.45); font-weight: 600; margin-top: 1px; letter-spacing: 0.5px; }
+.ss-wordmark { display: flex; align-items: center; gap: 6px; }
+.ss-icon { width: 28px; height: 28px; background: #00B4B0; border-radius: 7px; display: flex; align-items: center; justify-content: center; font-size: 13px; font-weight: 900; color: #fff; }
+.ss-label { font-size: 9px; font-weight: 700; color: #00B4B0; letter-spacing: 1px; text-transform: uppercase; }
+
+/* §3.5 — Topbar (screens 1–5) */
+.topbar {
+  background: var(--white);
+  padding: 11px 16px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-shrink: 0;
+  border-bottom: 3px solid var(--brand-500);
+}
+.back-btn {
+  width: 38px; height: 38px;
+  background: var(--brand-050);
+  border: none; border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 18px; color: var(--brand-900);
+  cursor: pointer; flex-shrink: 0;
+  transition: background 0.15s;
+  /* §3.4 — min tap target 44×44px */
+  min-width: 44px; min-height: 44px;
+}
+.back-btn:active { background: var(--brand-100); }
+.topbar-title { flex: 1; }
+.topbar-title h2 { font-size: 15px; font-weight: 900; color: var(--brand-900); }
+.topbar-title p  { font-size: 10.5px; color: var(--stone); margin-top: 1px; font-weight: 600; }
+.topbar-action {
+  background: var(--brand-050); border: none; border-radius: var(--r-sm);
+  padding: 7px 12px; font-size: 12px; font-weight: 800; color: var(--brand-700);
+  cursor: pointer; min-height: 44px; min-width: 44px; display: flex; align-items: center; justify-content: center;
+}
+
+/* Scroll containers — no scrollbar, touch scrolling */
+.scroll-area {
+  flex: 1;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+}
+.scroll-area::-webkit-scrollbar { display: none; }
+
+/* ════════════════════════════════════════════
+   SCREEN 0 — HOME
+════════════════════════════════════════════ */
+#screen-home { background: var(--brand-900); }
+
+.home-inner {
+  position: relative; z-index: 2;
+  flex: 1;
+  padding: 0 18px 28px;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+}
+.home-inner::-webkit-scrollbar { display: none; }
+
+/* Heritage cross-hatch background */
+.home-bg {
+  position: absolute; inset: 0; pointer-events: none; overflow: hidden;
+}
+.home-bg svg { width: 100%; height: 100%; }
+
+/* Ornamental divider */
+.home-ornament {
+  display: flex; align-items: center; gap: 10px;
+  margin: 16px 0 18px; opacity: 0.4;
+}
+.home-ornament-line { flex: 1; height: 1px; background: var(--gold-lt); }
+.home-ornament-diamond { width: 8px; height: 8px; background: var(--gold-lt); transform: rotate(45deg); flex-shrink: 0; }
+
+.home-eyebrow {
+  font-size: 9.5px; font-weight: 800; letter-spacing: 3px;
+  text-transform: uppercase; color: var(--gold-lt);
+  margin-bottom: 10px; text-align: center;
+}
+/* §3.1 — Display H1: 900 Black, 2.0–2.2rem */
+.home-title {
+  font-size: 2.1rem; font-weight: 900; line-height: 1.12;
+  color: #fff; margin-bottom: 8px; text-align: center;
+}
+.home-title .hl { color: var(--gold-lt); }
+.home-subtitle {
+  font-size: 12px; font-weight: 600;
+  color: rgba(255,255,255,0.5);
+  margin-bottom: 20px; font-style: italic; text-align: center;
+}
+
+/* 800th Anniversary Banner */
+.charter-banner {
+  background: linear-gradient(135deg, var(--red) 0%, #6B1010 100%);
+  border: 1px solid rgba(232,184,75,0.3);
+  border-radius: var(--r-md); padding: 14px 16px;
+  margin-bottom: 18px; display: flex; align-items: center; gap: 12px;
+  cursor: pointer; transition: opacity 0.15s;
+  box-shadow: 0 4px 20px rgba(139,26,26,0.4);
+}
+.charter-banner:active { opacity: 0.88; }
+.charter-banner-seal {
+  width: 44px; height: 44px;
+  background: rgba(232,184,75,0.15);
+  border: 1.5px solid var(--gold-lt);
+  border-radius: 50%; flex-shrink: 0;
+  display: flex; flex-direction: column;
+  align-items: center; justify-content: center;
+}
+.charter-seal-yr  { font-size: 12px; font-weight: 900; color: var(--gold-lt); line-height: 1; }
+.charter-seal-txt { font-size: 5px; font-weight: 800; text-transform: uppercase; color: var(--gold-lt); letter-spacing: 0.4px; text-align: center; line-height: 1.3; }
+.charter-banner-text h3 { font-size: 13.5px; font-weight: 900; color: var(--gold-lt); margin-bottom: 3px; }
+.charter-banner-text p  { font-size: 11px; color: rgba(232,184,75,0.65); line-height: 1.45; font-weight: 600; }
+.charter-banner-arrow { margin-left: auto; font-size: 18px; color: var(--gold-lt); flex-shrink: 0; opacity: 0.7; }
+
+/* Awe intro card */
+.home-awe-card {
+  background: rgba(255,255,255,0.07);
+  border: 1px solid rgba(200,150,42,0.22);
+  border-radius: var(--r-md); padding: 16px 18px;
+  margin-bottom: 18px; text-align: center;
+}
+.home-awe-icon { font-size: 28px; margin-bottom: 8px; display: block; }
+.home-awe-text { font-size: 13.5px; line-height: 1.65; color: rgba(255,255,255,0.82); font-weight: 600; }
+.home-awe-text strong { color: var(--gold-lt); }
+
+/* Stats strip */
+.home-stats { display: flex; gap: 8px; margin-bottom: 18px; }
+.home-stat {
+  flex: 1; background: rgba(255,255,255,0.08);
+  border-radius: var(--r-sm); padding: 11px 6px; text-align: center;
+}
+.home-stat-val { font-size: 1.5rem; font-weight: 900; color: var(--gold-lt); line-height: 1; }
+.home-stat-lbl { font-size: 9px; color: rgba(255,255,255,0.45); text-transform: uppercase; letter-spacing: 1.2px; margin-top: 3px; font-weight: 700; }
+
+/* §3.5 — Primary CTA: 50px height min */
+.btn-primary {
+  width: 100%; min-height: 50px; padding: 14px 20px;
+  background: linear-gradient(135deg, var(--brand-500), var(--brand-200));
+  color: #fff; font-family: var(--font);
+  font-size: 15px; font-weight: 800;
+  border: none; border-radius: var(--r-lg);
+  cursor: pointer; letter-spacing: 0.3px;
+  transition: opacity 0.15s; margin-bottom: 10px;
+  box-shadow: 0 4px 16px rgba(58,125,68,0.4);
+}
+.btn-primary:active { opacity: 0.88; transform: scale(0.98); }
+.btn-secondary {
+  width: 100%; min-height: 50px; padding: 13px 20px;
+  background: rgba(255,255,255,0.1);
+  color: rgba(255,255,255,0.85); font-family: var(--font);
+  font-size: 14px; font-weight: 700;
+  border: 1px solid rgba(255,255,255,0.2);
+  border-radius: var(--r-lg); cursor: pointer;
+  transition: opacity 0.15s; margin-bottom: 8px;
+}
+.btn-secondary:active { opacity: 0.75; }
+.btn-charter {
+  width: 100%; min-height: 50px; padding: 13px 20px;
+  background: linear-gradient(135deg, var(--red), #6B1010);
+  color: var(--gold-lt); font-family: var(--font);
+  font-size: 14px; font-weight: 800;
+  border: 1px solid rgba(232,184,75,0.3);
+  border-radius: var(--r-lg); cursor: pointer;
+  transition: opacity 0.15s; margin-bottom: 8px;
+}
+.btn-charter:active { opacity: 0.88; }
+
+/* §7.4 — NFC hint text (exact wording) */
+.nfc-hint {
+  font-size: 11px; color: rgba(255,255,255,0.3);
+  text-align: center; margin-top: 6px;
+  font-weight: 600; letter-spacing: 0.2px;
+}
+.nfc-dot {
+  display: inline-block; width: 6px; height: 6px;
+  background: #00B4B0; border-radius: 50;
+  margin-right: 5px; vertical-align: middle;
+  animation: dotBlink 2s infinite;
+}
+@keyframes dotBlink { 0%,100%{opacity:1} 50%{opacity:0.3} }
+
+/* ════════════════════════════════════════════
+   SCREEN 1 — CAR PARK SELECTION (overlay sheet)
+════════════════════════════════════════════ */
+.cp-overlay {
+  display: none; position: fixed; inset: 0; z-index: 500;
+  background: rgba(27,42,27,0.65); backdrop-filter: blur(4px);
+  align-items: flex-end;
+}
+.cp-overlay.open { display: flex; }
+.cp-sheet {
+  width: 100%; max-width: 430px; margin: 0 auto;
+  background: var(--white); border-radius: var(--r-xl) var(--r-xl) 0 0;
+  padding: 0 18px 36px; max-height: 82vh; overflow-y: auto;
+  scrollbar-width: none; animation: sheetUp 0.3s ease;
+}
+.cp-sheet::-webkit-scrollbar { display: none; }
+@keyframes sheetUp { from{transform:translateY(100%)} to{transform:translateY(0)} }
+.cp-drag-handle { width: 36px; height: 4px; background: var(--brand-100); border-radius: 2px; margin: 14px auto 16px; }
+.cp-sheet h3 { font-size: 19px; font-weight: 900; color: var(--brand-900); margin-bottom: 4px; }
+.cp-sheet-sub { font-size: 12.5px; color: var(--stone); margin-bottom: 16px; font-weight: 600; line-height: 1.5; }
+.cp-list { display: flex; flex-direction: column; gap: 8px; margin-bottom: 14px; }
+.cp-item {
+  display: flex; align-items: center; gap: 12px;
+  padding: 14px; background: var(--surface);
+  border-radius: var(--r-md); border: 2px solid var(--brand-100);
+  cursor: pointer; transition: border-color 0.15s;
+  min-height: 44px;
+}
+.cp-item.selected { border-color: var(--brand-500); background: var(--brand-050); }
+.cp-p-icon {
+  width: 38px; height: 38px; background: #2563eb;
+  border-radius: var(--r-sm); color: #fff;
+  display: flex; align-items: center; justify-content: center;
+  font-weight: 900; font-size: 14px; flex-shrink: 0;
+}
+.cp-item-info h4 { font-size: 13.5px; font-weight: 800; color: var(--ink); margin-bottom: 2px; }
+.cp-item-info p  { font-size: 11.5px; color: var(--stone); font-weight: 600; }
+.cp-dist { margin-left: auto; font-size: 11px; font-weight: 800; color: #2563eb; flex-shrink: 0; }
+.cp-confirm-btn {
+  width: 100%; min-height: 50px; padding: 14px;
+  background: linear-gradient(135deg, var(--brand-500), var(--brand-200));
+  color: #fff; border: none; border-radius: var(--r-lg);
+  font-size: 15px; font-weight: 800; font-family: var(--font); cursor: pointer;
+}
+.cp-confirm-btn:disabled { opacity: 0.4; cursor: default; }
+
+/* ════════════════════════════════════════════
+   CAR PARK SCREEN (full screen directions)
+════════════════════════════════════════════ */
+#screen-carpark { background: var(--surface); }
+.cp-welcome-card {
+  background: var(--brand-900); border-radius: var(--r-md);
+  padding: 16px 18px; margin-bottom: 14px;
+}
+.cp-welcome-card h3 { font-size: 15px; font-weight: 900; color: #fff; margin-bottom: 6px; }
+.cp-welcome-card p  { font-size: 13px; line-height: 1.65; color: rgba(255,255,255,0.7); font-weight: 600; }
+.cp-dir-card {
+  background: var(--white); border-radius: var(--r-md);
+  padding: 16px 18px; margin-bottom: 12px; box-shadow: var(--shadow);
+}
+.cp-dir-card h3 { font-size: 14px; font-weight: 800; color: var(--brand-900); margin-bottom: 14px; }
+.dir-step { display: flex; gap: 12px; margin-bottom: 4px; }
+.dir-dot {
+  width: 26px; height: 26px; border-radius: 50%;
+  background: var(--brand-500); color: #fff;
+  font-size: 11px; font-weight: 800;
+  display: flex; align-items: center; justify-content: center; flex-shrink: 0;
+}
+.dir-dot.dest { background: var(--gold); }
+.dir-vline { width: 2px; background: var(--brand-100); height: 18px; margin: 3px auto 0; }
+.dir-text { flex: 1; padding: 3px 0 12px; }
+.dir-text strong { font-size: 13px; color: var(--ink); display: block; margin-bottom: 2px; font-weight: 800; }
+.dir-text span   { font-size: 11.5px; color: var(--stone); line-height: 1.5; font-weight: 600; }
+.dir-badge { display: inline-block; margin-top: 5px; padding: 2px 8px; background: var(--brand-050); border-radius: 10px; font-size: 10.5px; color: var(--brand-700); font-weight: 700; }
+.btn-green {
+  width: 100%; min-height: 50px; padding: 14px;
+  background: linear-gradient(135deg, var(--brand-500), var(--brand-200));
+  color: #fff; border: none; border-radius: var(--r-lg);
+  font-size: 15px; font-weight: 800; font-family: var(--font); cursor: pointer;
+  margin-bottom: 10px;
+}
+.btn-green:active { opacity: 0.88; }
+
+/* ════════════════════════════════════════════
+   MAP SCREEN
+════════════════════════════════════════════ */
+#screen-map { background: var(--ink); }
+#map-container { flex: 1; position: relative; }
+#leaflet-map   { width: 100%; height: 100%; }
+.map-legend {
+  position: absolute; bottom: 16px; left: 12px; z-index: 1000;
+  background: rgba(255,255,255,0.95); border-radius: var(--r-sm);
+  padding: 8px 12px; box-shadow: var(--shadow);
+}
+.legend-items { display: flex; flex-direction: column; gap: 5px; }
+.legend-item  { display: flex; align-items: center; gap: 6px; font-size: 11px; color: var(--stone); font-weight: 700; }
+.legend-dot   { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
+.map-cp-fab {
+  position: absolute; top: 12px; right: 12px; z-index: 1000;
+  background: #2563eb; color: #fff; border: none; border-radius: var(--r-md);
+  padding: 9px 14px; font-size: 12px; font-weight: 800; font-family: var(--font);
+  cursor: pointer; box-shadow: var(--shadow); min-height: 44px;
+}
+
+/* ════════════════════════════════════════════
+   SITE SCREEN  (each stop = own page)
+   §4.1 — Screen 4 equivalent for trail context
+════════════════════════════════════════════ */
+#screen-site { background: var(--surface); }
+
+/* Return bar (car park reminder) */
+.return-bar {
+  display: flex; align-items: center; gap: 10px;
+  padding: 10px 16px; background: #2563eb;
+  cursor: pointer; flex-shrink: 0;
+}
+.return-bar.hidden { display: none; }
+.return-bar-text { flex: 1; font-size: 12.5px; font-weight: 700; color: #fff; }
+.return-bar-btn {
+  padding: 5px 12px; background: rgba(255,255,255,0.2);
+  color: #fff; border: none; border-radius: 20px;
+  font-size: 11px; font-weight: 800; cursor: pointer;
+}
+
+/* Progress track (§3.5 — progress bar on every step) */
+.progress-track {
+  display: flex; gap: 3px; padding: 6px 16px;
+  background: var(--brand-900); flex-shrink: 0;
+}
+.progress-dot {
+  flex: 1; height: 3px; border-radius: 2px;
+  background: rgba(255,255,255,0.15); transition: background 0.3s;
+}
+.progress-dot.done    { background: var(--brand-200); }
+.progress-dot.active  { background: var(--gold-lt); }
+
+/* Site hero */
+.site-hero {
+  background: linear-gradient(175deg, var(--brand-900) 0%, var(--brand-700) 65%, var(--surface) 100%);
+  padding: 22px 20px 30px; text-align: center; position: relative;
+  flex-shrink: 0;
+}
+.site-hero-num-badge {
+  display: inline-flex; align-items: center; gap: 6px;
+  background: rgba(200,150,42,0.2); border: 1px solid rgba(200,150,42,0.4);
+  border-radius: 20px; padding: 4px 12px; margin-bottom: 12px;
+  font-size: 11px; font-weight: 800; color: var(--gold-lt);
+  letter-spacing: 1.5px; text-transform: uppercase;
+}
+.site-hero-icon { font-size: 46px; margin-bottom: 10px; display: block; }
+.site-hero-name {
+  font-size: 1.65rem; font-weight: 900; color: #fff;
+  line-height: 1.2; margin-bottom: 6px;
+}
+.site-hero-addr { font-size: 11.5px; color: rgba(255,255,255,0.5); font-style: italic; font-weight: 600; }
+
+/* Body content */
+.site-body { padding: 18px 18px 24px; }
+
+/* Awe pull-quote */
+.awe-quote {
+  background: linear-gradient(135deg, var(--brand-900), var(--brand-700));
+  border-radius: var(--r-md); padding: 16px 18px; margin-bottom: 18px;
+  border-left: 4px solid var(--gold);
+}
+.awe-quote-text { font-size: 14.5px; font-style: italic; color: #fff; line-height: 1.7; margin-bottom: 6px; font-weight: 600; }
+.awe-quote-attr { font-size: 10.5px; color: rgba(255,255,255,0.4); font-weight: 700; letter-spacing: 0.5px; }
+
+/* Content prose */
+.site-prose { margin-bottom: 20px; }
+.site-prose p { font-size: 14.5px; line-height: 1.75; color: var(--stone); margin-bottom: 12px; font-weight: 600; }
+.site-prose p:last-child { margin-bottom: 0; }
+.site-prose strong { color: var(--ink); font-weight: 800; }
+.site-prose em     { color: var(--brand-700); font-style: italic; }
+
+/* Did You Know */
+.did-you-know {
+  background: var(--brand-050); border-radius: var(--r-md);
+  padding: 14px 16px; margin-bottom: 18px;
+  border: 1px solid var(--brand-100);
+}
+.dyk-label { font-size: 9.5px; font-weight: 800; letter-spacing: 2px; text-transform: uppercase; color: var(--brand-500); margin-bottom: 6px; }
+.dyk-text  { font-size: 13.5px; line-height: 1.65; color: var(--stone); font-weight: 600; }
+
+/* Links */
+.site-links { display: flex; flex-direction: column; gap: 8px; margin-bottom: 20px; }
+.site-link {
+  display: flex; align-items: center; gap: 10px;
+  padding: 11px 14px; background: var(--white);
+  border-radius: var(--r-sm); border: 1px solid var(--brand-100);
+  text-decoration: none; transition: background 0.15s;
+  min-height: 44px;
+}
+.site-link:active { background: var(--brand-050); }
+.site-link-icon   { font-size: 16px; flex-shrink: 0; }
+.site-link-text   { flex: 1; font-size: 13px; font-weight: 700; color: var(--brand-700); line-height: 1.3; }
+.site-link-arrow  { font-size: 14px; color: var(--stone); }
+
+/* Navigation direction section */
+.nav-section {
+  background: var(--brand-900); border-radius: var(--r-md);
+  padding: 16px 18px; margin-bottom: 18px;
+}
+.nav-section-label { font-size: 9.5px; font-weight: 800; letter-spacing: 2px; text-transform: uppercase; color: rgba(255,255,255,0.4); margin-bottom: 12px; }
+.nav-steps { display: flex; flex-direction: column; gap: 0; }
+.nav-step { display: flex; gap: 12px; padding: 8px 0; }
+.nav-step-col  { display: flex; flex-direction: column; align-items: center; }
+.nav-dot { width: 22px; height: 22px; border-radius: 50%; background: var(--gold); display: flex; align-items: center; justify-content: center; font-size: 10px; font-weight: 800; color: var(--ink); flex-shrink: 0; }
+.nav-vline { flex: 1; width: 2px; background: rgba(255,255,255,0.1); margin: 3px 0; }
+.nav-step-text { padding-top: 3px; padding-bottom: 6px; }
+.nav-step-text strong { font-size: 13px; font-weight: 800; color: #fff; display: block; margin-bottom: 2px; }
+.nav-step-text span   { font-size: 11.5px; color: rgba(255,255,255,0.5); line-height: 1.5; font-weight: 600; }
+.nav-dist { display: inline-block; margin-top: 4px; padding: 2px 8px; background: rgba(255,255,255,0.1); border-radius: 10px; font-size: 10px; color: rgba(255,255,255,0.55); font-weight: 700; }
+
+/* §3.5 — Next button */
+.btn-next {
+  width: 100%; min-height: 50px; padding: 15px;
+  background: linear-gradient(135deg, var(--brand-500), var(--brand-700));
+  color: #fff; font-family: var(--font);
+  font-size: 15px; font-weight: 800;
+  border: none; border-radius: var(--r-lg);
+  cursor: pointer; margin-bottom: 8px;
+  letter-spacing: 0.3px; transition: opacity 0.15s;
+}
+.btn-next:active { opacity: 0.88; }
+.btn-map-link {
+  width: 100%; min-height: 44px; padding: 12px;
+  background: rgba(26,74,26,0.08); color: var(--brand-700);
+  font-family: var(--font); font-size: 13.5px; font-weight: 700;
+  border: 1px solid rgba(26,74,26,0.18); border-radius: var(--r-lg); cursor: pointer;
+}
+
+/* ════════════════════════════════════════════
+   800th ANNIVERSARY CHARTER SCREEN
+════════════════════════════════════════════ */
+#screen-charter { background: var(--brand-900); }
+.charter-scroll { flex: 1; padding: 18px 16px 32px; overflow-y: auto; -webkit-overflow-scrolling: touch; scrollbar-width: none; }
+.charter-scroll::-webkit-scrollbar { display: none; }
+.charter-seal-card {
+  background: linear-gradient(135deg, rgba(139,26,26,0.3), rgba(42,92,42,0.2));
+  border: 1.5px solid rgba(232,184,75,0.3);
+  border-radius: var(--r-lg); padding: 24px 20px;
+  margin-bottom: 18px; text-align: center;
+}
+.charter-seal-icon  { font-size: 48px; margin-bottom: 12px; display: block; }
+.charter-seal-card h3 { font-size: 20px; font-weight: 900; color: var(--gold-lt); margin-bottom: 10px; }
+.charter-seal-card p  { font-size: 14px; color: rgba(255,255,255,0.7); line-height: 1.7; font-weight: 600; }
+.charter-section-label { font-size: 9.5px; font-weight: 800; letter-spacing: 2px; text-transform: uppercase; color: rgba(255,255,255,0.4); margin-bottom: 12px; padding: 0 4px; }
+.timeline { margin-bottom: 18px; }
+.timeline-item {
+  background: rgba(255,255,255,0.05); border-radius: var(--r-md);
+  padding: 14px 16px; margin-bottom: 8px;
+  border-left: 3px solid var(--gold);
+}
+.timeline-year { font-size: 17px; font-weight: 900; color: var(--gold-lt); margin-bottom: 4px; }
+.timeline-text { font-size: 13px; color: rgba(255,255,255,0.65); line-height: 1.6; font-weight: 600; }
+.event-card {
+  background: linear-gradient(135deg, rgba(139,26,26,0.3), rgba(74,52,10,0.2));
+  border: 1.5px solid rgba(232,184,75,0.3);
+  border-radius: var(--r-md); padding: 18px; margin-bottom: 14px;
+}
+.event-card h3 { font-size: 15px; font-weight: 900; color: var(--gold-lt); margin-bottom: 10px; }
+.event-card p  { font-size: 13px; color: rgba(255,255,255,0.7); line-height: 1.6; margin-bottom: 12px; font-weight: 600; }
+.event-row { display: flex; align-items: flex-start; gap: 8px; margin-bottom: 7px; }
+.event-row-icon { font-size: 14px; width: 20px; flex-shrink: 0; margin-top: 1px; }
+.event-row-text { font-size: 12.5px; color: rgba(255,255,255,0.6); font-weight: 600; line-height: 1.5; }
+.charter-links { display: flex; flex-direction: column; gap: 8px; margin-bottom: 18px; }
+.charter-link-btn {
+  display: flex; align-items: center; gap: 12px;
+  background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.1);
+  border-radius: var(--r-md); padding: 14px 16px;
+  text-decoration: none; transition: background 0.15s; min-height: 44px;
+}
+.charter-link-btn:active { background: rgba(255,255,255,0.1); }
+.charter-link-icon {
+  width: 36px; height: 36px; background: rgba(232,184,75,0.12);
+  border-radius: var(--r-sm); display: flex; align-items: center; justify-content: center;
+  font-size: 16px; flex-shrink: 0;
+}
+.charter-link-info { flex: 1; }
+.charter-link-info strong { display: block; font-size: 13px; font-weight: 800; color: #fff; margin-bottom: 2px; }
+.charter-link-info span   { font-size: 11px; color: rgba(255,255,255,0.4); font-weight: 600; }
+.charter-link-arrow { font-size: 14px; color: rgba(255,255,255,0.3); }
+
+/* ════════════════════════════════════════════
+   DONATION SECTION
+════════════════════════════════════════════ */
+.donation-awe-card {
+  background: linear-gradient(160deg, rgba(42,92,42,0.35) 0%, rgba(27,58,27,0.5) 100%);
+  border: 1.5px solid rgba(106,171,114,0.35);
+  border-radius: var(--r-lg); padding: 22px 20px;
+  margin-bottom: 16px; text-align: center; position: relative; overflow: hidden;
+}
+.donation-awe-card::before {
+  content: ''; position: absolute; inset: 0;
+  background: radial-gradient(ellipse at 60% 0%, rgba(200,150,42,0.08) 0%, transparent 70%);
+  pointer-events: none;
+}
+.donation-awe-icon { font-size: 38px; margin-bottom: 10px; display: block; }
+.donation-awe-heading { font-size: 18px; font-weight: 900; color: #fff; line-height: 1.25; margin-bottom: 8px; }
+.donation-awe-heading .hl { color: var(--gold-lt); }
+.donation-awe-text { font-size: 13.5px; line-height: 1.7; color: rgba(255,255,255,0.75); font-weight: 600; }
+.donation-awe-text strong { color: var(--gold-lt); font-weight: 800; }
+.donation-tiers { display: flex; flex-direction: column; gap: 10px; margin-bottom: 16px; }
+.donation-tier {
+  background: rgba(255,255,255,0.055); border: 1px solid rgba(255,255,255,0.1);
+  border-radius: var(--r-md); padding: 14px 16px;
+  display: flex; align-items: center; gap: 14px;
+  cursor: pointer; text-decoration: none; transition: background 0.15s, border-color 0.15s; min-height: 44px;
+}
+.donation-tier:active { background: rgba(255,255,255,0.1); }
+.donation-tier.featured {
+  background: linear-gradient(135deg, rgba(200,150,42,0.2), rgba(232,184,75,0.1));
+  border-color: rgba(232,184,75,0.4);
+}
+.donation-tier-badge {
+  width: 48px; height: 48px; border-radius: var(--r-sm);
+  background: rgba(255,255,255,0.07);
+  display: flex; flex-direction: column; align-items: center; justify-content: center; flex-shrink: 0;
+}
+.donation-tier.featured .donation-tier-badge { background: rgba(200,150,42,0.18); }
+.donation-tier-amount { font-size: 17px; font-weight: 900; color: #fff; line-height: 1; }
+.donation-tier.featured .donation-tier-amount { color: var(--gold-lt); }
+.donation-tier-lbl { font-size: 8px; font-weight: 800; letter-spacing: 1px; text-transform: uppercase; color: rgba(255,255,255,0.4); margin-top: 2px; }
+.donation-tier.featured .donation-tier-lbl { color: rgba(232,184,75,0.6); }
+.donation-tier-info { flex: 1; }
+.donation-tier-info strong { display: block; font-size: 13px; font-weight: 800; color: #fff; margin-bottom: 3px; }
+.donation-tier.featured .donation-tier-info strong { color: var(--gold-lt); }
+.donation-tier-info span { font-size: 11.5px; color: rgba(255,255,255,0.45); font-weight: 600; line-height: 1.4; }
+.donation-tier-arrow { font-size: 14px; color: rgba(255,255,255,0.25); flex-shrink: 0; }
+.donation-tier.featured .donation-tier-arrow { color: rgba(232,184,75,0.5); }
+.donation-custom {
+  background: rgba(255,255,255,0.04); border: 1px dashed rgba(255,255,255,0.15);
+  border-radius: var(--r-md); padding: 14px 16px; text-align: center;
+  margin-bottom: 16px; cursor: pointer; text-decoration: none; display: block; transition: background 0.15s;
+}
+.donation-custom:active { background: rgba(255,255,255,0.08); }
+.donation-custom p { font-size: 12.5px; color: rgba(255,255,255,0.5); font-weight: 600; margin: 0; }
+.donation-custom p strong { color: rgba(255,255,255,0.8); }
+.donation-note {
+  background: rgba(106,171,114,0.1); border: 1px solid rgba(106,171,114,0.2);
+  border-radius: var(--r-sm); padding: 12px 14px; margin-bottom: 18px;
+}
+.donation-note p { font-size: 11.5px; line-height: 1.6; color: rgba(255,255,255,0.5); font-weight: 600; margin: 0; text-align: center; }
+
+/* ════════════════════════════════════════════
+   COMPLETE SCREEN
+════════════════════════════════════════════ */
+#screen-complete {
+  background: linear-gradient(160deg, var(--brand-900) 0%, var(--brand-700) 50%, #0e2e0e 100%);
+  align-items: center; justify-content: center;
+  text-align: center; padding: 30px 24px;
+  overflow-y: auto; scrollbar-width: none;
+}
+#screen-complete::-webkit-scrollbar { display: none; }
+.complete-icon { font-size: 60px; margin-bottom: 16px; animation: completePop 0.6s ease-out; }
+@keyframes completePop { 0%{transform:scale(0.5);opacity:0} 70%{transform:scale(1.1)} 100%{transform:scale(1);opacity:1} }
+.complete-headline { font-size: 2rem; font-weight: 900; color: #fff; margin-bottom: 8px; line-height: 1.2; }
+.complete-headline .hl { color: var(--gold-lt); }
+.complete-sub { font-size: 14px; line-height: 1.7; color: rgba(255,255,255,0.65); max-width: 320px; margin: 0 auto 24px; font-weight: 600; }
+.complete-charter-card {
+  background: linear-gradient(135deg, rgba(139,26,26,0.4), rgba(74,52,10,0.2));
+  border: 1.5px solid rgba(232,184,75,0.3);
+  border-radius: var(--r-md); padding: 18px; margin-bottom: 22px;
+  display: flex; align-items: center; gap: 14px; text-align: left;
+  max-width: 360px;
+}
+.complete-charter-seal {
+  width: 50px; height: 50px; background: rgba(232,184,75,0.15);
+  border: 1.5px solid var(--gold-lt); border-radius: 50%;
+  display: flex; flex-direction: column; align-items: center; justify-content: center; flex-shrink: 0;
+}
+.complete-charter-yr  { font-size: 13px; font-weight: 900; color: var(--gold-lt); }
+.complete-charter-txt { font-size: 5px; font-weight: 800; text-transform: uppercase; color: var(--gold-lt); text-align: center; line-height: 1.3; }
+.complete-charter-info h4 { font-size: 14px; font-weight: 900; color: var(--gold-lt); margin-bottom: 4px; }
+.complete-charter-info p  { font-size: 12px; color: rgba(232,184,75,0.65); line-height: 1.5; font-weight: 600; }
+.return-cp-card {
+  background: rgba(255,255,255,0.08); border-radius: var(--r-md);
+  padding: 18px; margin-bottom: 16px;
+  border: 1px solid rgba(37,99,235,0.3); max-width: 360px; width: 100%;
+}
+.return-cp-card h3 { font-size: 15px; font-weight: 900; color: #fff; margin-bottom: 6px; }
+.return-cp-card p  { font-size: 13px; color: rgba(255,255,255,0.6); margin-bottom: 14px; font-weight: 600; line-height: 1.5; }
+
+/* ════════════════════════════════════════════
+   NFC LANDING SCREEN
+════════════════════════════════════════════ */
+#screen-nfc {
+  background: var(--brand-900);
+  align-items: center; justify-content: center;
+  text-align: center; padding: 30px 24px;
+  position: relative; overflow: hidden;
+}
+.nfc-ring-outer {
+  position: absolute; width: 280px; height: 280px;
+  border: 2px solid rgba(200,150,42,0.15); border-radius: 50%;
+  top: 50%; left: 50%; transform: translate(-50%,-50%);
+  animation: ringPulse 3s ease-in-out infinite;
+}
+.nfc-ring-outer-2 {
+  position: absolute; width: 380px; height: 380px;
+  border: 1px solid rgba(200,150,42,0.07); border-radius: 50%;
+  top: 50%; left: 50%; transform: translate(-50%,-50%);
+  animation: ringPulse 3s ease-in-out infinite 0.8s;
+}
+@keyframes ringPulse { 0%,100%{opacity:0.4;transform:translate(-50%,-50%) scale(0.95)} 50%{opacity:1;transform:translate(-50%,-50%) scale(1.05)} }
+.nfc-pill {
+  display: flex; align-items: center; gap: 7px;
+  background: rgba(0,180,176,0.2); border: 1px solid rgba(0,180,176,0.4);
+  border-radius: var(--r-xl); padding: 6px 14px;
+  font-size: 11px; font-weight: 700; color: #00B4B0;
+  margin-bottom: 24px; letter-spacing: 0.5px;
+}
+.nfc-scan-icon { font-size: 52px; margin-bottom: 14px; animation: scanBob 2s ease-in-out infinite; }
+@keyframes scanBob { 0%,100%{transform:translateY(0)} 50%{transform:translateY(-6px)} }
+.nfc-you-are { font-size: 11px; font-weight: 700; letter-spacing: 2.5px; text-transform: uppercase; color: rgba(255,255,255,0.4); margin-bottom: 6px; }
+.nfc-location-name { font-size: 1.65rem; font-weight: 900; color: #fff; margin-bottom: 6px; line-height: 1.2; }
+.nfc-location-name .hl { color: var(--gold-lt); }
+.nfc-location-meta { font-size: 12px; color: rgba(255,255,255,0.55); margin-bottom: 4px; font-weight: 600; }
+.nfc-location-addr { font-size: 11px; color: rgba(255,255,255,0.38); margin-bottom: 14px; font-style: italic; font-weight: 600; }
+.nfc-type-badge {
+  display: inline-block; padding: 4px 12px; border-radius: 20px;
+  font-size: 11px; font-weight: 800; letter-spacing: 1.5px;
+  text-transform: uppercase; background: rgba(200,150,42,0.2);
+  color: var(--gold-lt); border: 1px solid rgba(200,150,42,0.3); margin-bottom: 24px;
+}
+.nfc-progress-ring-wrap { margin-bottom: 12px; }
+.nfc-progress-ring-bg { fill: none; stroke: rgba(255,255,255,0.1); stroke-width: 3; }
+.nfc-progress-ring-fg {
+  fill: none; stroke: var(--gold-lt); stroke-width: 3; stroke-linecap: round;
+  transform-origin: center; transform: rotate(-90deg);
+  stroke-dasharray: 138; stroke-dashoffset: 138; transition: stroke-dashoffset 0.1s linear;
+}
+.nfc-tap-hint { font-size: 11px; color: rgba(255,255,255,0.35); margin-bottom: 20px; font-weight: 600; }
+.nfc-btn-now {
+  padding: 14px 32px; min-height: 50px;
+  background: linear-gradient(135deg, var(--gold), var(--gold-lt));
+  color: var(--ink); font-family: var(--font);
+  font-size: 14px; font-weight: 800;
+  border: none; border-radius: var(--r-lg); cursor: pointer; margin-bottom: 28px;
+  min-width: 200px;
+}
+</style>
+</head>
+<body>
+
+<!-- ════════ SCREEN 0 — HOME ════════ -->
+<div id="screen-home" class="screen active">
+  <!-- §3.5 — Venue Bar -->
+  <div class="venue-bar">
+    <div class="venue-bar-left">
+      <div class="venue-badge" onclick="showCharter()" style="cursor:pointer" title="800th Anniversary">
+        <div class="venue-badge-yr">800</div>
+        <div class="venue-badge-txt">Market<br>Charter</div>
+      </div>
+      <div>
+        <div class="venue-name">Ringwood History Trail</div>
+        <div class="venue-sub">Gateway to the New Forest</div>
+      </div>
+    </div>
+    <div class="ss-wordmark">
+      <div class="ss-icon">S</div>
+      <div class="ss-label">RouteLoop™</div>
+    </div>
+  </div>
+
+  <!-- Background heritage pattern -->
+  <div class="home-bg">
+    <svg viewBox="0 0 430 780" preserveAspectRatio="xMidYMid slice" xmlns="http://www.w3.org/2000/svg">
+      <defs>
+        <pattern id="hatch" width="40" height="40" patternUnits="userSpaceOnUse" patternTransform="rotate(25)">
+          <line x1="0" y1="0" x2="0" y2="40" stroke="#C8962A" stroke-width="0.7"/>
+        </pattern>
+      </defs>
+      <rect width="430" height="780" fill="url(#hatch)" opacity="0.04"/>
+      <!-- Forest treeline silhouette -->
+      <path d="M0 160 L18 130 L36 148 L54 112 L72 140 L90 108 L108 138 L126 106 L144 134 L162 104 L180 132 L198 102 L216 130 L234 105 L252 132 L270 106 L288 134 L306 108 L324 136 L342 110 L360 138 L378 112 L396 136 L430 114 L430 160 Z" fill="#2A5C2A" opacity="0.35"/>
+      <!-- River curve -->
+      <path d="M-20 380 Q80 340 160 400 Q240 460 330 420 Q400 388 480 440" stroke="#3A7D44" stroke-width="2" fill="none" opacity="0.12"/>
+      <path d="M-20 392 Q80 352 160 412 Q240 472 330 432 Q400 400 480 452" stroke="#3A7D44" stroke-width="1.2" fill="none" opacity="0.07"/>
+      <!-- Decorative gold diamonds -->
+      <g fill="#C8962A" opacity="0.25">
+        <rect x="194" y="62" width="7" height="7" transform="rotate(45 197 65)"/>
+        <rect x="214" y="62" width="7" height="7" transform="rotate(45 217 65)"/>
+        <rect x="234" y="62" width="7" height="7" transform="rotate(45 237 65)"/>
+      </g>
+      <circle cx="330" cy="80" r="100" fill="#C8962A" opacity="0.03"/>
+      <circle cx="60" cy="660" r="140" fill="#3A7D44" opacity="0.04"/>
+    </svg>
+  </div>
+
+  <div class="home-inner">
+    <div class="home-ornament">
+      <div class="home-ornament-line"></div>
+      <div class="home-ornament-diamond"></div>
+      <div class="home-ornament-line"></div>
+    </div>
+
+    <div class="home-eyebrow">Ringwood, Hampshire · Est. 955 AD</div>
+    <h1 class="home-title">Ringwood<br><span class="hl">History</span><br>Trail</h1>
+    <p class="home-subtitle">Discover the stories written in stone and stream</p>
+
+    <!-- 800th Anniversary Banner -->
+    <div class="charter-banner" onclick="showCharter()">
+      <div class="charter-banner-seal">
+        <div class="charter-seal-yr">800</div>
+        <div class="charter-seal-txt">Yrs<br>Market</div>
+      </div>
+      <div class="charter-banner-text">
+        <h3>👑 800th Anniversary · 2026</h3>
+        <p>Royal Market Charter 1226 — celebrating 800 years of Ringwood as a market town. Sunday 12 July celebrations.</p>
+      </div>
+      <div class="charter-banner-arrow">›</div>
+    </div>
+
+    <!-- Awe card -->
+    <div class="home-awe-card">
+      <span class="home-awe-icon">🏛️</span>
+      <p class="home-awe-text">
+        <strong>Over 1,000 years of history</strong> await you in these streets. Saxon settlers, a royal market charter, the fugitive Duke of Monmouth, craft brewers, and railway pioneers — all woven into the fabric of this remarkable town at the rim of the New Forest.
+      </p>
+    </div>
+
+    <!-- Stats -->
+    <div class="home-stats">
+      <div class="home-stat">
+        <div class="home-stat-val">10</div>
+        <div class="home-stat-lbl">Stops</div>
+      </div>
+      <div class="home-stat">
+        <div class="home-stat-val">~75</div>
+        <div class="home-stat-lbl">Mins</div>
+      </div>
+      <div class="home-stat">
+        <div class="home-stat-val">~1</div>
+        <div class="home-stat-lbl">Mile</div>
+      </div>
+    </div>
+
+    <!-- §9.2 — Standard label set applied -->
+    <button class="btn-primary" onclick="showCarParkSelect()">🅿 Set Your Car Park &amp; Begin</button>
+    <button class="btn-secondary" onclick="showMap()">🗺 View Trail Map</button>
+    <button class="btn-charter" onclick="showCharter()">👑 800th Anniversary Celebrations</button>
+
+    <!-- §7.4 — Exact NFC hint wording required -->
+    <p class="nfc-hint"><span class="nfc-dot"></span>If you are lost, just tap your phone on the nearest RouteLoop</p>
+  </div>
+
+  <!-- Car Park Selection overlay -->
+  <div class="cp-overlay" id="cp-overlay" onclick="closeCPIfBackground(event)">
+    <div class="cp-sheet">
+      <div class="cp-drag-handle"></div>
+      <h3>🅿 Choose Your Car Park</h3>
+      <p class="cp-sheet-sub">Select where you are parked and we will guide you to the trail start, then remember your car park for the return journey.</p>
+      <div class="cp-list" id="cp-list"></div>
+      <button class="cp-confirm-btn" id="cp-confirm-btn" onclick="confirmCP()" disabled>Navigate to Trail Start →</button>
+    </div>
+  </div>
+</div>
+
+<!-- ════════ CAR PARK SCREEN ════════ -->
+<div id="screen-carpark" class="screen">
+  <div class="venue-bar">
+    <div class="venue-bar-left">
+      <div class="venue-name">Ringwood History Trail</div>
+    </div>
+    <div class="ss-wordmark">
+      <div class="ss-icon">S</div>
+      <div class="ss-label">RouteLoop™</div>
+    </div>
+  </div>
+  <div class="topbar">
+    <button class="back-btn" onclick="showHome()" aria-label="Go back">←</button>
+    <div class="topbar-title">
+      <h2 id="cp-screen-title">Car Park Name</h2>
+      <p>Walking directions to Trail Start</p>
+    </div>
+  </div>
+  <div class="scroll-area" style="padding:18px 18px 32px" id="cp-screen-scroll"></div>
+</div>
+
+<!-- ════════ MAP SCREEN ════════ -->
+<div id="screen-map" class="screen">
+  <div class="venue-bar">
+    <div class="venue-bar-left">
+      <div class="venue-name">Ringwood History Trail</div>
+    </div>
+    <div class="ss-wordmark">
+      <div class="ss-icon">S</div>
+      <div class="ss-label">RouteLoop™</div>
+    </div>
+  </div>
+  <div class="topbar">
+    <button class="back-btn" onclick="showHome()" aria-label="Go back">←</button>
+    <div class="topbar-title">
+      <h2>Heritage Trail Map</h2>
+      <p>10 stops · Tap any marker to explore</p>
+    </div>
+    <button class="topbar-action" onclick="showCarParkSelect()">🅿</button>
+  </div>
+  <div id="map-container">
+    <div id="leaflet-map"></div>
+    <button class="map-cp-fab" onclick="showCarParkSelect()">🅿 Car Parks</button>
+    <div class="map-legend">
+      <div class="legend-items">
+        <div class="legend-item"><div class="legend-dot" style="background:var(--gold)"></div>Heritage stop</div>
+        <div class="legend-item"><div class="legend-dot" style="background:#2563eb;border-radius:3px"></div>Car park</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ════════ SITE SCREEN ════════ -->
+<div id="screen-site" class="screen">
+  <div class="venue-bar">
+    <div class="venue-bar-left">
+      <div class="venue-name">Ringwood History Trail</div>
+    </div>
+    <div class="ss-wordmark">
+      <div class="ss-icon">S</div>
+      <div class="ss-label">RouteLoop™</div>
+    </div>
+  </div>
+  <!-- Return bar -->
+  <div class="return-bar hidden" id="return-bar" onclick="showReturnToCar()">
+    <span>🅿</span>
+    <span class="return-bar-text" id="return-bar-text">Return to car park</span>
+    <button class="return-bar-btn">Get Directions</button>
+  </div>
+  <!-- Topbar -->
+  <div class="topbar">
+    <button class="back-btn" onclick="showHome()" aria-label="Go back">←</button>
+    <div class="topbar-title">
+      <h2 id="site-topbar-name">Site Name</h2>
+      <p id="site-topbar-sub">Stop 1 of 10 · History Trail</p>
+    </div>
+    <button class="topbar-action" onclick="showMap()">🗺</button>
+  </div>
+  <!-- Progress track — §3.5 progress bar every step -->
+  <div class="progress-track" id="progress-track"></div>
+  <!-- Body — scrolls by touch, no scrollbar -->
+  <div class="scroll-area" id="site-scroll">
+    <div id="site-hero-zone"></div>
+    <div class="site-body" id="site-body"></div>
+  </div>
+</div>
+
+<!-- ════════ 800th ANNIVERSARY CHARTER SCREEN ════════ -->
+<div id="screen-charter" class="screen">
+  <div class="venue-bar">
+    <div class="venue-bar-left">
+      <div class="venue-name">Ringwood History Trail</div>
+    </div>
+    <div class="ss-wordmark">
+      <div class="ss-icon">S</div>
+      <div class="ss-label">RouteLoop™</div>
+    </div>
+  </div>
+  <div class="topbar">
+    <button class="back-btn" onclick="showHome()" aria-label="Go back">←</button>
+    <div class="topbar-title">
+      <h2>800th Anniversary</h2>
+      <p>Royal Market Charter · 1226–2026</p>
+    </div>
+  </div>
+  <div class="charter-scroll">
+    <div class="charter-seal-card">
+      <span class="charter-seal-icon">⚜️</span>
+      <h3>Granted by King Henry III · 1226</h3>
+      <p>In March 1226 King Henry III granted Ringwood the right to hold a market on Wednesdays. That market has traded <strong style="color:var(--gold-lt)">every single Wednesday since</strong> — one of England's longest unbroken market traditions, now reaching its 800th year.</p>
+    </div>
+
+    <div class="charter-section-label">⏳ A Charter Through the Ages</div>
+    <div class="timeline">
+      <div class="timeline-item">
+        <div class="timeline-year">1226</div>
+        <div class="timeline-text">King Henry III grants Wednesday market rights. Two annual fairs also established — on St Peter's Day (29 June) and St Andrew's Day (30 November).</div>
+      </div>
+      <div class="timeline-item">
+        <div class="timeline-year">1553</div>
+        <div class="timeline-text">Edward VI formally confirms the market charter. Ringwood becomes the main produce centre across the Avon and Stour valleys, famed for New Forest ponies.</div>
+      </div>
+      <div class="timeline-item">
+        <div class="timeline-year">1752</div>
+        <div class="timeline-text">Calendar reform changes fair days to 10 July and 11 December. The fairs continue as Ringwood highlights until the Second World War.</div>
+      </div>
+      <div class="timeline-item">
+        <div class="timeline-year">1868</div>
+        <div class="timeline-text">The Town Hall is built overlooking the Market Place by Mr Morant, Lord of the Manor — cementing the market as the civic heart of Ringwood.</div>
+      </div>
+      <div class="timeline-item">
+        <div class="timeline-year">1988</div>
+        <div class="timeline-text">The cattle market at the Furlong closes after centuries of livestock trading alongside the Wednesday market.</div>
+      </div>
+      <div class="timeline-item">
+        <div class="timeline-year">2026</div>
+        <div class="timeline-text">800th anniversary of the Royal Charter. Ringwood celebrates eight centuries of unbroken market tradition with a major community celebration on Sunday 12 July.</div>
+      </div>
+    </div>
+
+    <div class="charter-section-label">🎉 The Celebration Event</div>
+    <div class="event-card">
+      <h3>Sunday 12 July 2026 · Market Place</h3>
+      <p>A full day of festivities in Ringwood Market Place — a community celebration of 800 years of market town heritage, open to all.</p>
+      <div class="event-row"><div class="event-row-icon">⛪</div><div class="event-row-text">Church service 10:30am–11:30am in Market Place</div></div>
+      <div class="event-row"><div class="event-row-icon">🎭</div><div class="event-row-text">Official event from 11:30am until 7:30pm</div></div>
+      <div class="event-row"><div class="event-row-icon">🎪</div><div class="event-row-text">Morris dancers, village games, live stage entertainment, market stalls, food &amp; crafts</div></div>
+      <div class="event-row"><div class="event-row-icon">🎡</div><div class="event-row-text">Funfair on Bickerley Green</div></div>
+      <div class="event-row"><div class="event-row-icon">📍</div><div class="event-row-text">Ringwood Market Place &amp; Bickerley Green, BH24 1AL</div></div>
+    </div>
+
+    <div class="charter-section-label">🔗 Useful Links</div>
+    <div class="charter-links">
+      <a class="charter-link-btn" href="https://ringwood.gov.uk/events/800th-anniversary-of-the-market-charter/" target="_blank" rel="noopener">
+        <div class="charter-link-icon">🏛️</div>
+        <div class="charter-link-info"><strong>Full Event Details</strong><span>ringwood.gov.uk — Official programme</span></div>
+        <span class="charter-link-arrow">›</span>
+      </a>
+      <a class="charter-link-btn" href="https://www.ringwood.gov.uk/" target="_blank" rel="noopener">
+        <div class="charter-link-icon">🌐</div>
+        <div class="charter-link-info"><strong>Ringwood Town Council</strong><span>ringwood.gov.uk — Town services &amp; news</span></div>
+        <span class="charter-link-arrow">›</span>
+      </a>
+      <a class="charter-link-btn" href="https://www.thenewforest.co.uk/explore/towns-and-villages/ringwood/" target="_blank" rel="noopener">
+        <div class="charter-link-icon">🌿</div>
+        <div class="charter-link-info"><strong>Visit Ringwood</strong><span>thenewforest.co.uk — Visitor guide</span></div>
+        <span class="charter-link-arrow">›</span>
+      </a>
+      <a class="charter-link-btn" href="mailto:events@ringwood.gov.uk">
+        <div class="charter-link-icon">✉️</div>
+        <div class="charter-link-info"><strong>Get Involved</strong><span>events@ringwood.gov.uk</span></div>
+        <span class="charter-link-arrow">›</span>
+      </a>
+    </div>
+
+    <!-- ── DONATION SECTION ─────────────────────────── -->
+    <div class="charter-section-label">💛 Support the Celebrations</div>
+
+    <!-- Awe framing card -->
+    <div class="donation-awe-card">
+      <span class="donation-awe-icon">⚜️</span>
+      <h3 class="donation-awe-heading">Eight centuries.<br>One <span class="hl">remarkable community.</span></h3>
+      <p class="donation-awe-text">
+        The 800th anniversary belongs to everyone who loves Ringwood. The Sunday 12 July celebrations are a free, community event — and your support helps make it extraordinary. Every contribution, however small, connects you directly to <strong>800 years of market town spirit</strong>.
+      </p>
+    </div>
+
+    <!-- Donation tiers -->
+    <div class="donation-tiers">
+
+      <a class="donation-tier" href="mailto:events@ringwood.gov.uk?subject=800th%20Anniversary%20Donation%20%E2%80%94%20%C2%A35&body=Hello%2C%20I%20would%20like%20to%20support%20the%20800th%20anniversary%20celebrations%20with%20a%20donation%20of%20%C2%A35." target="_blank" rel="noopener">
+        <div class="donation-tier-badge">
+          <div class="donation-tier-amount">£5</div>
+          <div class="donation-tier-lbl">Donor</div>
+        </div>
+        <div class="donation-tier-info">
+          <strong>The Townsperson</strong>
+          <span>Helps fund the street decorations that will dress Ringwood Market Place for the day</span>
+        </div>
+        <div class="donation-tier-arrow">›</div>
+      </a>
+
+      <a class="donation-tier featured" href="mailto:events@ringwood.gov.uk?subject=800th%20Anniversary%20Donation%20%E2%80%94%20%C2%A325&body=Hello%2C%20I%20would%20like%20to%20support%20the%20800th%20anniversary%20celebrations%20with%20a%20donation%20of%20%C2%A325." target="_blank" rel="noopener">
+        <div class="donation-tier-badge">
+          <div class="donation-tier-amount">£25</div>
+          <div class="donation-tier-lbl">Popular</div>
+        </div>
+        <div class="donation-tier-info">
+          <strong>The Merchant</strong>
+          <span>Supports live entertainment and the community stage — the heart of the July celebrations</span>
+        </div>
+        <div class="donation-tier-arrow">›</div>
+      </a>
+
+      <a class="donation-tier" href="mailto:events@ringwood.gov.uk?subject=800th%20Anniversary%20Donation%20%E2%80%94%20%C2%A3100&body=Hello%2C%20I%20would%20like%20to%20support%20the%20800th%20anniversary%20celebrations%20with%20a%20donation%20of%20%C2%A3100." target="_blank" rel="noopener">
+        <div class="donation-tier-badge">
+          <div class="donation-tier-amount">£100</div>
+          <div class="donation-tier-lbl">Patron</div>
+        </div>
+        <div class="donation-tier-info">
+          <strong>The Charter Patron</strong>
+          <span>Helps commission commemorative materials that will outlast the day and mark 800 years in Ringwood's history</span>
+        </div>
+        <div class="donation-tier-arrow">›</div>
+      </a>
+
+      <a class="donation-tier" href="mailto:events@ringwood.gov.uk?subject=800th%20Anniversary%20Sponsorship&body=Hello%2C%20I%20represent%20a%20business%20that%20would%20like%20to%20discuss%20sponsoring%20the%20800th%20anniversary%20celebrations." target="_blank" rel="noopener">
+        <div class="donation-tier-badge">
+          <div class="donation-tier-amount" style="font-size:12px">BIZ</div>
+          <div class="donation-tier-lbl">Sponsor</div>
+        </div>
+        <div class="donation-tier-info">
+          <strong>Business Sponsor</strong>
+          <span>Partner your brand with a once-in-800-years event — contact the Town Council to discuss packages</span>
+        </div>
+        <div class="donation-tier-arrow">›</div>
+      </a>
+
+    </div>
+
+    <!-- Custom amount -->
+    <a class="donation-custom" href="mailto:events@ringwood.gov.uk?subject=800th%20Anniversary%20Donation&body=Hello%2C%20I%20would%20like%20to%20support%20the%20800th%20anniversary%20celebrations%20with%20a%20donation." target="_blank" rel="noopener">
+      <p>Want to give a different amount? <strong>Contact the Town Council →</strong></p>
+    </a>
+
+    <!-- Trust note -->
+    <div class="donation-note">
+      <p>💚 All donations support Ringwood Town Council's community events programme. Contact <strong>events@ringwood.gov.uk</strong> to donate or discuss sponsorship. Your generosity helps keep this celebration free and open to all.</p>
+    </div>
+    <!-- ── END DONATION SECTION ──────────────────────── -->
+
+    <button class="btn-primary" onclick="showSite(1)">🏛 Start the History Trail</button>
+    <button class="btn-secondary" onclick="showHome()" style="margin-top:0">← Back to Home</button>
+    <div style="height:12px"></div>
+  </div>
+</div>
+
+<!-- ════════ COMPLETE SCREEN ════════ -->
+<div id="screen-complete" class="screen">
+  <div class="complete-icon">🏅</div>
+  <h1 class="complete-headline">Trail<br><span class="hl">Complete!</span></h1>
+  <p class="complete-sub">You have walked the full Ringwood Town Trail — through 800 years of a royal market town, from the Gateway to the Furlong and back. The Wednesday market still trades today, just as it has since 1226.</p>
+  <div class="complete-charter-card">
+    <div class="complete-charter-seal">
+      <div class="complete-charter-yr">800</div>
+      <div class="complete-charter-txt">Years of<br>Ringwood<br>Market</div>
+    </div>
+    <div class="complete-charter-info">
+      <h4>800th Anniversary · 2026</h4>
+      <p>Join the celebration on Sunday 12 July in the Market Place — eight centuries of community spirit.</p>
+    </div>
+  </div>
+  <div class="return-cp-card" id="complete-return-card" style="display:none">
+    <h3>🅿 Return to Car Park</h3>
+    <p id="complete-return-text">Ready to head back to your car?</p>
+    <button class="btn-green" onclick="showReturnToCar()">Get Directions Back to Car Park</button>
+  </div>
+  <button class="btn-primary" onclick="showCharter()" style="max-width:360px;margin-top:4px">👑 800th Anniversary Info</button>
+  <a href="mailto:events@ringwood.gov.uk?subject=800th%20Anniversary%20Donation&body=Hello%2C%20I%20have%20just%20completed%20the%20Ringwood%20History%20Trail%20and%20would%20like%20to%20support%20the%20800th%20anniversary%20celebrations." target="_blank" rel="noopener" style="display:block;max-width:360px;width:100%;min-height:50px;padding:14px 20px;background:linear-gradient(135deg,rgba(200,150,42,0.25),rgba(232,184,75,0.15));border:1.5px solid rgba(232,184,75,0.4);border-radius:var(--r-lg);cursor:pointer;letter-spacing:0.3px;transition:opacity 0.15s;margin-bottom:10px;font-family:var(--font);font-size:14px;font-weight:800;color:var(--gold-lt);text-decoration:none;text-align:center;line-height:1.4;display:flex;align-items:center;justify-content:center;gap:8px">
+    💛 Support the 800th Anniversary
+  </a>
+  <button class="btn-secondary" style="max-width:360px" onclick="showHome()">← Back to Home</button>
+</div>
+
+<!-- ════════ NFC SCREEN ════════ -->
+<div id="screen-nfc" class="screen" onclick="proceedFromNfc()">
+  <div class="nfc-ring-outer"></div>
+  <div class="nfc-ring-outer-2"></div>
+  <div class="nfc-pill"><span>📡</span><span>RouteLoop NFC Connected</span></div>
+  <div class="nfc-scan-icon" id="nfc-icon">🏛️</div>
+  <p class="nfc-you-are">You are at</p>
+  <div class="nfc-location-name" id="nfc-location-name">Stop <span class="hl">1</span></div>
+  <div class="nfc-location-meta" id="nfc-location-meta">Site name</div>
+  <div class="nfc-location-addr" id="nfc-location-addr">Address</div>
+  <div class="nfc-type-badge" id="nfc-type-badge">Heritage Stop 1 of 10</div>
+  <div class="nfc-progress-ring-wrap">
+    <svg width="56" height="56" viewBox="0 0 56 56">
+      <circle class="nfc-progress-ring-bg" cx="28" cy="28" r="22"/>
+      <circle class="nfc-progress-ring-fg" cx="28" cy="28" r="22" id="nfc-ring"/>
+    </svg>
+  </div>
+  <p class="nfc-tap-hint" id="nfc-tap-hint">Auto-continuing in 4s · tap to go now</p>
+  <button class="nfc-btn-now" id="nfc-btn" onclick="proceedFromNfc()">View Stop →</button>
+</div>
+
+<script>
+// ═══════════════════════════════════════════════════════════════════════
+//  TRAIL DATA  ·  10 Stops · Ringwood Town
+// ═══════════════════════════════════════════════════════════════════════
+const SITES = [
+  // ── ALL COORDINATES VERIFIED from Google My Maps source data ──────────
+  // Source: https://www.google.com/maps/d/viewer?mid=1jvI5MAT-dPWw2KSoJToxAvGBk0_g8tA
+  // Published by Go New Forest, 28 March 2024. Descriptions are official trail text.
+  {
+    id: 1,
+    name: "Ringwood Gateway",
+    shortName: "Ringwood Gateway",
+    icon: "🏛️",
+    address: "The Furlong, Ringwood BH24 1AT",
+    era: "Start of trail",
+    lat: 50.8473039, lng: -1.7923163,
+    awe_quote: "Every great journey starts with a single step — and this one takes you back through 800 years of one of England's most remarkable market towns.",
+    content: `<p>The trail begins at the <strong>Ringwood Gateway building</strong>, next to the Furlong Car Park. This modern civic hub is the heart of Ringwood's community life — home to the Town Council and visitor information services.</p>
+    <p>But look around you. The Furlong — named for the ancient unit of agricultural land — was for centuries the site of <strong>Ringwood's Cattle Market</strong>, where farmers from across the New Forest traded their livestock. That market only closed in <strong>1988</strong>, ending a trading tradition stretching back at least 600 years. The area now occupied by Waitrose supermarket was previously the cattle market yard.</p>
+    <p>In 2026, Ringwood celebrates the <strong>800th anniversary</strong> of its Royal Market Charter, granted by King Henry III in 1226. This trail will take you through the streets and stories that connect today's town to that medieval moment.</p>`,
+    did_you_know: "The three-storey building now used as a restaurant opposite was formerly Frampton's corn and seed merchant's stores — a reminder that this whole area was once the commercial engine of a farming community.",
+    links: [
+      { label: '🏛️ Ringwood Town Council', url: 'https://www.ringwood.gov.uk/' },
+      { label: '👑 800th Anniversary Celebrations', url: 'https://ringwood.gov.uk/events/800th-anniversary-of-the-market-charter/' }
+    ],
+    directions: [
+      { step: 'Cross the road by the bus-stops', detail: 'The old chapel is immediately in front of you on the opposite side of the road', dist: '~50m' }
+    ]
+  },
+  {
+    id: 2,
+    name: "Meeting House",
+    shortName: "Meeting House",
+    icon: "🕊️",
+    address: "Meeting House Lane, Ringwood BH24 1EX",
+    era: "Georgian · 1727",
+    lat: 50.84706, lng: -1.7922627,
+    awe_quote: "Built in 1727 by people who refused to conform — this quiet building speaks of the courage it took to worship differently in Georgian England.",
+    content: `<p>Cross the road by the bus-stops to the <strong>old chapel immediately in front of you</strong>. Built in <strong>1727</strong>, the Meeting House is a fine example of a non-conformist chapel, complete with galleries and box pews.</p>
+    <p>It is now an <strong>exhibition and local history centre</strong>, open every morning except Sundays. <em>Entry is free.</em> You might like to pop in for a look at the history of Ringwood displayed in the galleries.</p>
+    <p>Nonconformist meeting houses like this were deliberately built away from town centres — partly practical, partly to avoid tensions with the established church. That this one survives in such fine condition, still serving its community 300 years on, is a remarkable testament to Ringwood's civic spirit.</p>`,
+    did_you_know: "The Toleration Act of 1689 gave Protestant dissenters the legal right to worship outside the Church of England. The Meeting House was built just 38 years later — part of a wave of nonconformist buildings that quietly reshaped the religious landscape of English towns.",
+    links: [
+      { label: 'ℹ️ Ringwood Meeting House', url: 'https://www.ringwood.gov.uk/information-service/' }
+    ],
+    directions: [
+      { step: "Walk past the front of the Inn on the Furlong Pub", detail: "Head down the narrow one-way Meeting House Lane", dist: "~100m" },
+      { step: "Meeting House Lane brings you to the Market Place", detail: "On Wednesday morning a street market dating to 1226 still takes place here", dist: "" }
+    ]
+  },
+  {
+    id: 3,
+    name: "To the Market Place",
+    shortName: "Market Place",
+    icon: "⚜️",
+    address: "Market Place, Ringwood BH24 1AL",
+    era: "Medieval · 1226",
+    lat: 50.8469889, lng: -1.7922654,
+    awe_quote: "For eight centuries, every Wednesday morning, the same ancient right has been exercised in this very square — a thread connecting you directly to the reign of Henry III.",
+    content: `<p>Walk past the front of the <strong>Inn on the Furlong Pub</strong>, and down the narrow one-way Meeting House Lane which brings you to the <strong>Market Place</strong>. On Wednesday morning a street market which dates its charter back to <strong>1226</strong> still takes place here.</p>
+    <p>The <strong>Original White Hart</strong> on the right hand side of the Market Place is probably Ringwood's oldest inn. Local legend says that it gained its name when <strong>King Henry VII and his courtiers</strong> visited the inn whilst hunting deer in the New Forest.</p>
+    <p>The building on the other side of the archway was built as <strong>Ringwood's Town Hall and Corn Exchange</strong> in Victorian times. In the 20th century it was converted to a cinema and later a shopping arcade. The ornamental stone dressings and Victorian civic grandeur are still visible in the façade.</p>`,
+    did_you_know: "The market charter was originally granted in March 1226 in the reign of Henry III. It should have been confirmed when he reached his majority, but was not until 15 May 1553 in the reign of Edward VI — 327 years later.",
+    links: [
+      { label: '👑 800th Anniversary · 12 July 2026', url: 'https://ringwood.gov.uk/events/800th-anniversary-of-the-market-charter/' },
+      { label: '📅 Ringwood Markets & Fairs', url: 'https://ringwood.gov.uk/events/markets-fairs/' }
+    ],
+    directions: [
+      { step: "Turn and head down the narrow High Street", detail: "Pause to look at the shop on the corner of Lynes Lane — a Victorian rebuild of historic interest", dist: "~80m" }
+    ]
+  },
+  {
+    id: 4,
+    name: "High Street",
+    shortName: "High Street",
+    icon: "🏪",
+    address: "High Street, Ringwood BH24 1AF",
+    era: "Victorian rebuilding",
+    lat: 50.8465909, lng: -1.7935394,
+    awe_quote: "The ordinary-looking corner shop hides one of Ringwood's most fascinating stories — the ghost of a medieval market house that once stood in the middle of the square.",
+    content: `<p>Turn and head down the <strong>narrow High Street</strong>, pausing to look at the shop on the corner of <strong>Lynes Lane</strong>. This is a <strong>Victorian rebuild of the old Market House</strong> which once stood in the middle of the Market Place until <strong>1867</strong>.</p>
+    <p>If you look carefully at the side facing on to Lynes Lane, you will see the reuse of the ornamental facade of its ground floor arches, <strong>stone dressings and pediment</strong> — salvaged from the demolished Market House and incorporated into the new building. It is one of those quiet acts of architectural recycling that only reveals itself to the observant eye.</p>
+    <p>The High Street itself is the commercial spine of Ringwood — a town that has been a trading centre since the Wednesday market first drew merchants here in the 13th century.</p>`,
+    did_you_know: "Market houses — covered structures in the centre of market places where goods were weighed, measured and sheltered — were common features of medieval English towns. Ringwood's stood until 1867, when it was demolished to improve traffic flow through the Market Place.",
+    links: [
+      { label: '🌿 Explore Ringwood', url: 'https://www.thenewforest.co.uk/explore/towns-and-villages/ringwood/' }
+    ],
+    directions: [
+      { step: "Continue along the High Street to Fridays Cross junction", detail: "The junction where Christchurch Road, High Street, Kingsbury Lane and Southampton Road meet", dist: "~300m" }
+    ]
+  },
+  {
+    id: 5,
+    name: "Fridays Cross",
+    shortName: "Fridays Cross",
+    icon: "🔀",
+    address: "Fridays Cross, Ringwood BH24 1DW",
+    era: "Ancient junction",
+    lat: 50.8459765, lng: -1.7911714,
+    awe_quote: "Fridays Cross — where four roads meet, where ancient routes converge, and where a name no one can fully explain has survived for many centuries.",
+    content: `<p>Continue along the High Street to the junction where <strong>Christchurch Road, High Street, Kingsbury Lane and Southampton Road</strong> meet, known as <strong>Fridays Cross</strong>. The derivation of the name Fridays Cross remains shrouded in the mists of time, for it is many centuries old.</p>
+    <p>The <strong>circular iron seat</strong> here features cut-out images reflecting aspects of the town crest: <em>leaping stags and oak leaves</em> symbolise Ringwood's links to the New Forest, and <em>salmon and water</em> represent the River Avon.</p>
+    <p>Turn right beneath the arch <strong>down Kingsbury Lane</strong>. This narrow lane leads you away from the bustle of the main roads and toward the quieter, older parts of the town — toward the Bickerley and the river that gave Ringwood its reason to exist.</p>`,
+    did_you_know: "The name 'Fridays Cross' is thought to be many centuries old, but its exact origin is unknown. Some historians suggest it may refer to a wayside cross — a common medieval landmark at road junctions — associated with a family name or religious observance, but the record is lost.",
+    links: [
+      { label: '🌿 Ringwood Town Trail', url: 'https://www.thenewforest.co.uk/trail/ringwood-town-trail/64f0ba3012ec8e5c82d72935/' }
+    ],
+    directions: [
+      { step: "Turn right beneath the arch down Kingsbury Lane", detail: "Follow the lane south toward the Bickerley", dist: "~200m" },
+      { step: "At the end of the lane, a small George V postbox marks where you turn right along the Bickerley", detail: "Look for the red postbox on the left", dist: "" }
+    ]
+  },
+  {
+    id: 6,
+    name: "The Bickerley",
+    shortName: "The Bickerley",
+    icon: "🌿",
+    address: "The Bickerley, Ringwood BH24 1EA",
+    era: "Common land · ancient",
+    lat: 50.8443205, lng: -1.7921763,
+    awe_quote: "This semi-rural pocket of open land — threaded by the Avon Valley footpath and crossed by the old railway — connects Ringwood to 9½ miles of countryside all the way to Christchurch.",
+    content: `<p>A small <strong>George V postbox</strong> sits at the end of the lane where you turn right along <strong>the Bickerley</strong>. This semi-rural piece of open land, now owned by the town council, was for centuries land with common rights — the kind of shared resource that underpinned rural communities long before the concept of public parks.</p>
+    <p>Here the <strong>Avon Valley footpath</strong> leads over the water meadows to <strong>Christchurch, 9½ miles away</strong>. The water meadows are one of the finest examples of this ancient Hampshire landscape — a system of channels and sluices designed to protect crops from frost by flooding them with relatively warm river water.</p>
+    <p>The route of the <strong>old railway line</strong>, now the <em>Castleman Trailway</em>, also passes from Crow towards Wimborne here — a reminder of the Victorian infrastructure that once connected this town to the national network.</p>`,
+    did_you_know: "The Castleman Trailway follows the route of the Southampton & Dorchester Railway — nicknamed 'Castleman's Corkscrew' after solicitor Charles Castleman who promoted it. The line closed in 1964 as part of the Beeching cuts, but lives on as a walking and cycling trail.",
+    links: [
+      { label: '🚶 Avon Valley Footpath', url: 'https://www.thenewforest.co.uk/things-to-do/walking/' }
+    ],
+    directions: [
+      { step: "Walk past the attractive Bickerley Terrace", detail: "Continue through a pocket park with a path that winds by the Millstream", dist: "~150m" },
+      { step: "Continue up Strides Lane", detail: "The footpath widens to a road — you can begin to glimpse the Parish Church rising above the roofs ahead", dist: "~200m" }
+    ]
+  },
+  {
+    id: 7,
+    name: "Bickerley Terrace",
+    shortName: "Bickerley Terrace",
+    icon: "🏡",
+    address: "Bickerley Terrace, Ringwood BH24 1EA",
+    era: "Victorian",
+    lat: 50.8448658, lng: -1.7934617,
+    awe_quote: "Walk past the terrace, through the pocket park, and by the Millstream — and the Parish Church begins to rise above the rooftops, pulling you back toward the heart of the town.",
+    content: `<p>Walk past the attractive <strong>Bickerley Terrace</strong> and through a <strong>pocket park</strong> with a path that winds by the <strong>Millstream</strong>. This quiet green corridor connects the riverside common land to the town centre — one of those little-known pleasures that reward the walker who strays from the main streets.</p>
+    <p>Continue up <strong>Strides Lane</strong>. The footpath widens to a road and you can begin to glimpse the <strong>Parish Church rising above the roofs</strong> ahead — a landmark that has oriented Ringwood's townspeople for over a thousand years.</p>
+    <p>This walk by the Millstream gives a sense of how intimately the town has always been connected to its waterways. The Avon and its network of channels powered mills, supported agriculture, and provided the pure water that made Ringwood's famous ales possible.</p>`,
+    did_you_know: "The Millstream is a subsidiary channel of the River Avon — part of the network of watercourses that has always defined Ringwood's geography. The town's very name, 'Rimucwude', places it at the boundary of forest and water.",
+    links: [
+      { label: '🌿 Ringwood Parks & Green Spaces', url: 'https://www.ringwood.gov.uk/parks-play-areas-and-gardens/' }
+    ],
+    directions: [
+      { step: "Turn left along West Street", detail: "Over a hundred years ago the right-hand side of this road consisted almost entirely of thatched cottages", dist: "~100m" }
+    ]
+  },
+  {
+    id: 8,
+    name: "West Street",
+    shortName: "West Street",
+    icon: "⚔️",
+    address: "West Street, Ringwood BH24 1DZ",
+    era: "Tudor · 1685",
+    lat: 50.8468142, lng: -1.7953353,
+    awe_quote: "A defeated Duke wrote his last desperate letter from this street — and a row of thatched cottages once lined the very road you're walking down.",
+    content: `<p>Turn left along <strong>West Street</strong>. Over a hundred years ago the right-hand side of this road consisted almost entirely of <strong>thatched cottages</strong>, with the notable exception of <strong>Monmouth House</strong>.</p>
+    <p>The plaque on this house records that it was here that the <strong>Duke of Monmouth</strong> was held after his abortive rebellion in <strong>1685</strong>, and from where he unsuccessfully wrote to his uncle <strong>King James II begging for mercy</strong>. Next door, the <em>Old Cottage</em> is an attractive example of the timber-framed cottages that were once common along Ringwood's streets.</p>
+    <p>Cross the pedestrian bridge into <strong>Jubilee Gardens</strong> and view <strong>Ringwood's bridges</strong>. The first small brick bridge spans the narrow Millstream, whereas the second three-arched stone bridge crosses the wide <strong>River Avon</strong> on its journey down to the sea at Christchurch.</p>
+    <p>Returning to West Street, cross the road and continue back towards the Market Place. The bus depot and row of three shops stand on the site of <strong>Carter's brewery</strong>, which produced Ringwood Ales until <strong>1923</strong>. The elegant three-storeyed <em>Bridge House</em> was once the home of the Carter brewing family.</p>`,
+    did_you_know: "No more beer was brewed commercially in Ringwood from 1923 until 1978, when the present Ringwood Brewery was founded on the southern edge of town. Peter Austin, its founder, is widely credited as the father of the modern microbrewery movement — inspiring craft breweries across the UK and USA.",
+    links: [
+      { label: '⚔️ Duke of Monmouth', url: 'https://en.wikipedia.org/wiki/James_Scott,_1st_Duke_of_Monmouth' },
+      { label: '🍺 Ringwood Brewery', url: 'https://www.ringwoodbrewery.co.uk/' }
+    ],
+    directions: [
+      { step: "Continue back towards the Market Place along West Street", detail: "Head east back toward the town centre", dist: "~200m" },
+      { step: "Continue to the Market Place and the Jubilee Lamp", detail: "Erected by public subscription in 1887 to commemorate Queen Victoria's Golden Jubilee", dist: "" }
+    ]
+  },
+  {
+    id: 9,
+    name: "Market Place",
+    shortName: "Market Place",
+    icon: "🌟",
+    address: "Market Place, Ringwood BH24 1AL",
+    era: "Victorian · 1887",
+    lat: 50.847131, lng: -1.7953593,
+    awe_quote: "A human sundial, a Jubilee Lamp, a churchyard raised by centuries of burials — the Market Place layers history upon history, each generation leaving its mark.",
+    content: `<p>Continue back to the <strong>Market Place</strong> and the <strong>Jubilee Lamp</strong>, which was erected by public subscription in <strong>1887</strong> to commemorate Queen Victoria's Golden Jubilee. At ground level nearby is a <strong>human sundial</strong>, refurbished in 2021. If it's a sunny day, try telling the time by this ancient method!</p>
+    <p>The <strong>Parish Church</strong> was built between <strong>1853–1855</strong>, but earlier churches have stood here since <em>Saxon times</em>. An indication of the site's antiquity is given by the <strong>height of the graveyard above street level</strong> — as generations of burials have successively raised the ground over more than a thousand years.</p>
+    <p>Note the <strong>iron box set in the old church wall</strong>. Originally this would have been kept inside the church to safeguard <em>parish registers and other important documents</em> — the vital records of births, marriages, and deaths that constituted the official memory of the community.</p>`,
+    did_you_know: "The graveyard height above street level is a remarkable piece of archaeology you can read with your own eyes. Each generation of burials — from Saxon times onwards — raised the ground by a few centimetres, until the accumulated weight of more than a millennium has left the churchyard noticeably higher than the surrounding roads.",
+    links: [
+      { label: '⛪ St Peter & St Paul Church', url: 'https://www.ringwoodteamministry.org/' },
+      { label: '📖 Ringwood History', url: 'https://www.ringwood.gov.uk/admin/resources/admin/history-nv-mar26-amending-tony-white-mary-baldwin.pdf' }
+    ],
+    directions: [
+      { step: "Back at the Market Place, turn left by the Star Inn up Star Lane", detail: "This brings you into the Furlong Shopping Centre", dist: "~100m" }
+    ]
+  },
+  {
+    id: 10,
+    name: "To The Furlong",
+    shortName: "The Furlong",
+    icon: "🐎",
+    address: "The Furlong Shopping Centre, Ringwood BH24 1AT",
+    era: "End of trail",
+    lat: 50.8468007, lng: -1.7943986,
+    awe_quote: "A bronze mare and foal — the eternal symbol of the New Forest — brings the trail full circle, back to where Ringwood's ancient market story meets its modern life.",
+    content: `<p>Back at the Market Place, turn left by the <strong>Star Inn</strong> up Star Lane which brings you into the <strong>Furlong Shopping Centre</strong>. This attractive development of shops blends well with the existing buildings.</p>
+    <p>The <strong>bronze sculpture of the Mare and Foal</strong> by sporting sculptress <em>Priscilla Hann</em> encapsulates Ringwood's traditional links with the New Forest and its ponies — and provides a delightful focal point to the Centre. New Forest ponies were once one of the principal commodities traded at Ringwood's Wednesday market.</p>
+    <p>The area now occupied by <strong>Waitrose supermarket</strong> was previously the site of the <strong>weekly cattle market</strong>. The three-storey building, now a restaurant, was formerly <em>Frampton's corn and seed merchant's stores</em>.</p>
+    <p>You have arrived back at the Ringwood Gateway — and completed a walk through <strong>800 years of one of England's finest market towns</strong>. The Wednesday market still trades today, just as it has since 1226.</p>`,
+    did_you_know: "The Mare and Foal sculpture by Priscilla Hann was commissioned to mark Ringwood's enduring connection to the New Forest. Forest ponies — semi-wild and managed by 'Commoners' under ancient rights — have grazed the forest for over 1,000 years and were a staple of Ringwood's market trade.",
+    links: [
+      { label: '👑 800th Anniversary · 12 July 2026', url: 'https://ringwood.gov.uk/events/800th-anniversary-of-the-market-charter/' },
+      { label: '🌿 New Forest Ponies', url: 'https://www.thenewforest.co.uk/explore/wildlife-and-nature/ponies/' },
+      { label: '🏛️ Ringwood Town Council', url: 'https://www.ringwood.gov.uk/' }
+    ]
+  }
+];
+
+// Car Parks  — coordinates verified against Ringwood town geography
+const CAR_PARKS = [
+  {
+    id: "furlong",
+    name: "The Furlong Car Park",
+    shortName: "The Furlong",
+    address: "The Furlong, Ringwood BH24 1AT",
+    spaces: "Large multi-storey · Pay & Display",
+    lat: 50.8476, lng: -1.7918,
+    dist: "1 min walk",
+    directions: [
+      { step: "Exit the car park onto The Furlong", detail: "Turn left — Ringwood Gateway is immediately ahead of you" },
+      { step: "Stop 1 is at Ringwood Gateway, right next to the car park exit", detail: "~50m · less than 1 minute walk", dest: true }
+    ]
+  },
+  {
+    id: "bickerley",
+    name: "Bickerley Road Car Park",
+    shortName: "Bickerley Road",
+    address: "Bickerley Road, Ringwood BH24 1EA",
+    spaces: "Free parking · Riverside",
+    lat: 50.8441, lng: -1.7905,
+    dist: "8 min walk",
+    directions: [
+      { step: "From Bickerley Road Car Park, walk north along Kingsbury Lane", detail: "Head toward the town centre" },
+      { step: "At Fridays Cross junction, turn left along the High Street", detail: "~400m · 5 minutes" },
+      { step: "Continue to the Market Place and then Meeting House Lane to the Gateway", detail: "Stop 1 (Ringwood Gateway) is next to the Furlong Car Park", dest: true }
+    ]
+  },
+  {
+    id: "carvers",
+    name: "Carvers Recreation Ground",
+    shortName: "Carvers",
+    address: "Carvers Lane, Ringwood BH24 1LR",
+    spaces: "Free parking · Open-air",
+    lat: 50.8489, lng: -1.7883,
+    dist: "6 min walk",
+    directions: [
+      { step: "Leave Carvers and walk south along Carvers Lane into town", detail: "Head toward the Furlong" },
+      { step: "Follow signs to the Furlong Shopping Centre", detail: "~400m · 5 minutes" },
+      { step: "Stop 1 (Ringwood Gateway) is next to the Furlong Car Park entrance", detail: "You'll see the Ringwood Gateway building on your right", dest: true }
+    ]
+  }
+];
+
+// ═══════════════════════════════════════════════════════════════════════
+//  STATE
+// ═══════════════════════════════════════════════════════════════════════
+let mapInstance = null;
+let startCpId = null;
+let selectedCpId = null;
+
+function saveStartCp(id) {
+  startCpId = id;
+  try { sessionStorage.setItem('ss_cp', id); } catch(e) {}
+}
+function loadStartCp() {
+  try { startCpId = sessionStorage.getItem('ss_cp') || null; } catch(e) { startCpId = null; }
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+//  SCREEN ROUTING  (§4.1 — linear screen flow with animation)
+// ═══════════════════════════════════════════════════════════════════════
+function showScreen(id) {
+  document.querySelectorAll('.screen').forEach(s => s.classList.remove('active', 'screen-entering'));
+  const el = document.getElementById('screen-' + id);
+  el.classList.add('active', 'screen-entering');
+  if (id === 'map' && !mapInstance) { setTimeout(initMap, 60); }
+}
+function showHome()     { window.location.hash = ''; showScreen('home'); }
+function showMap()      { showScreen('map'); }
+function showCharter()  { showScreen('charter'); }
+function showComplete() {
+  loadStartCp();
+  if (startCpId) {
+    const cp = CAR_PARKS.find(c => c.id === startCpId);
+    if (cp) {
+      document.getElementById('complete-return-card').style.display = 'block';
+      document.getElementById('complete-return-text').textContent = `We've remembered your car at ${cp.shortName}. Ready to head back?`;
+    }
+  }
+  showScreen('complete');
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+//  CAR PARK  (§3.5 — bottom sheet; §5.6 — session persistence)
+// ═══════════════════════════════════════════════════════════════════════
+function showCarParkSelect() {
+  const list = document.getElementById('cp-list');
+  list.innerHTML = CAR_PARKS.map(cp => `
+    <div class="cp-item" id="cpi-${cp.id}" onclick="selectCP('${cp.id}')">
+      <div class="cp-p-icon">P</div>
+      <div class="cp-item-info">
+        <h4>${cp.name}</h4>
+        <p>${cp.spaces}</p>
+      </div>
+      <div class="cp-dist">${cp.dist}</div>
+    </div>`).join('');
+  document.getElementById('cp-confirm-btn').disabled = true;
+  document.getElementById('cp-overlay').classList.add('open');
+}
+function closeCPIfBackground(e) {
+  if (e.target === document.getElementById('cp-overlay')) {
+    document.getElementById('cp-overlay').classList.remove('open');
+  }
+}
+function selectCP(id) {
+  selectedCpId = id;
+  document.querySelectorAll('.cp-item').forEach(el => el.classList.remove('selected'));
+  document.getElementById('cpi-' + id)?.classList.add('selected');
+  document.getElementById('cp-confirm-btn').disabled = false;
+}
+function confirmCP() {
+  if (!selectedCpId) return;
+  saveStartCp(selectedCpId);
+  document.getElementById('cp-overlay').classList.remove('open');
+  showCarParkScreen(selectedCpId);
+}
+function showCarParkScreen(cpId) {
+  const cp = CAR_PARKS.find(c => c.id === cpId);
+  if (!cp) return;
+  document.getElementById('cp-screen-title').textContent = cp.name;
+  const scroll = document.getElementById('cp-screen-scroll');
+  scroll.innerHTML = `
+    <div class="cp-welcome-card">
+      <h3>🅿 Parked at ${cp.shortName}</h3>
+      <p>We have saved your car park so we can guide you back at the end of the trail. Walk to Stop 1 — the Market Place — to begin your journey through Ringwood's history.</p>
+    </div>
+    <div class="cp-dir-card">
+      <h3>🚶 Walking to Trail Start</h3>
+      ${cp.directions.map((d, i) => `
+        <div class="dir-step">
+          <div class="dir-dot${d.dest ? ' dest' : ''}">${i+1}</div>
+          <div class="dir-text">
+            <strong>${d.step}</strong>
+            <span>${d.detail}</span>
+            ${d.dest ? '<span class="dir-badge">🏁 Trail starts here</span>' : ''}
+          </div>
+        </div>
+        ${!d.dest ? '<div style="padding:0 0 0 12px;margin-bottom:4px"><div class="dir-vline"></div></div>' : ''}`
+      ).join('')}
+    </div>
+    <div style="background:var(--white);border-radius:var(--r-md);padding:14px 18px;margin-bottom:14px;box-shadow:var(--shadow);display:flex;align-items:center;gap:16px">
+      <div style="text-align:center;flex-shrink:0">
+        <div style="font-size:1.4rem;font-weight:900;color:var(--brand-500)">${cp.dist}</div>
+        <div style="font-size:9px;text-transform:uppercase;letter-spacing:1px;color:var(--stone);margin-top:2px;font-weight:700">To Stop 1</div>
+      </div>
+      <div style="width:1px;height:40px;background:var(--brand-100)"></div>
+      <div style="font-size:13px;color:var(--stone);line-height:1.6;font-weight:600">A gentle walk to the Market Place — the historic heart of this 800-year-old market town.</div>
+    </div>
+    <button class="btn-green" onclick="showSite(1)">🏛 Begin the History Trail →</button>
+    <button style="width:100%;min-height:44px;padding:12px;background:rgba(26,74,26,0.07);color:var(--brand-700);font-family:var(--font);font-size:13.5px;font-weight:700;border:1px solid var(--brand-100);border-radius:var(--r-lg);cursor:pointer" onclick="showMap()">🗺 View Trail Map</button>
+  `;
+  showScreen('carpark');
+}
+function showReturnToCar() {
+  loadStartCp();
+  if (!startCpId) { showHome(); return; }
+  const cp = CAR_PARKS.find(c => c.id === startCpId);
+  if (!cp) return;
+  document.getElementById('cp-screen-title').textContent = 'Return to ' + cp.shortName;
+  const scroll = document.getElementById('cp-screen-scroll');
+  scroll.innerHTML = `
+    <div class="cp-welcome-card">
+      <h3>🏁 Trail Complete!</h3>
+      <p>You have walked through 1,000 years of Ringwood's story. Here are your walking directions back to ${cp.shortName}.</p>
+    </div>
+    <div class="cp-dir-card">
+      <h3>🚶 Return Walking Directions</h3>
+      ${cp.directions.slice().reverse().map((d, i, arr) => `
+        <div class="dir-step">
+          <div class="dir-dot${i === arr.length-1 ? ' dest' : ''}">${i+1}</div>
+          <div class="dir-text">
+            <strong>${i === 0 ? 'From Bickerley Green, walk back through the town centre' : i === arr.length-1 ? 'Arrive at ' + cp.name : d.step}</strong>
+            <span>${i === arr.length-1 ? 'Your car is parked here' : 'Retrace your route back through town'}</span>
+            ${i === arr.length-1 ? '<span class="dir-badge">🅿 Your car is here</span>' : ''}
+          </div>
+        </div>
+        ${i < arr.length-1 ? '<div style="padding:0 0 0 12px;margin-bottom:4px"><div class="dir-vline"></div></div>' : ''}`
+      ).join('')}
+    </div>
+    <button class="btn-green" onclick="showHome()">🏠 Back to Home</button>
+    <button style="width:100%;min-height:44px;padding:12px;background:rgba(26,74,26,0.07);color:var(--brand-700);font-family:var(--font);font-size:13.5px;font-weight:700;border:1px solid var(--brand-100);border-radius:var(--r-lg);cursor:pointer;margin-top:8px" onclick="showCharter()">👑 800th Anniversary Info</button>
+  `;
+  showScreen('carpark');
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+//  SITE SCREEN  (each site = distinct page, scrolls by touch)
+// ═══════════════════════════════════════════════════════════════════════
+function showSite(id) {
+  const site = SITES.find(s => s.id === id);
+  if (!site) return;
+  loadStartCp();
+  window.location.hash = 'site' + id;
+
+  // Topbar
+  document.getElementById('site-topbar-name').textContent = site.name;
+  document.getElementById('site-topbar-sub').textContent = `Stop ${id} of ${SITES.length} · History Trail`;
+
+  // Progress track
+  document.getElementById('progress-track').innerHTML = SITES.map(s =>
+    `<div class="progress-dot${s.id < id ? ' done' : s.id === id ? ' active' : ''}"></div>`
+  ).join('');
+
+  // Return bar
+  const rb = document.getElementById('return-bar');
+  if (startCpId) {
+    const cp = CAR_PARKS.find(c => c.id === startCpId);
+    rb.classList.remove('hidden');
+    document.getElementById('return-bar-text').textContent = `🅿 Parked at ${cp?.shortName || 'car park'}`;
+  } else {
+    rb.classList.add('hidden');
+  }
+
+  // Hero zone
+  document.getElementById('site-hero-zone').innerHTML = `
+    <div class="site-hero">
+      <div class="site-hero-num-badge">Stop ${id} of ${SITES.length} &nbsp;·&nbsp; ${site.era}</div>
+      <span class="site-hero-icon">${site.icon}</span>
+      <div class="site-hero-name">${site.name}</div>
+      <div class="site-hero-addr">${site.address}</div>
+    </div>`;
+
+  // Body content
+  const nextSite = SITES.find(s => s.id === id + 1);
+  let html = '';
+
+  // Awe quote
+  if (site.awe_quote) {
+    html += `<div class="awe-quote">
+      <div class="awe-quote-text">"${site.awe_quote}"</div>
+      <div class="awe-quote-attr">Heritage Trail · Stop ${id} of ${SITES.length}</div>
+    </div>`;
+  }
+
+  // Prose
+  html += `<div class="site-prose">${site.content}</div>`;
+
+  // Did you know
+  if (site.did_you_know) {
+    html += `<div class="did-you-know">
+      <div class="dyk-label">💡 Did You Know?</div>
+      <div class="dyk-text">${site.did_you_know}</div>
+    </div>`;
+  }
+
+  // Links
+  if (site.links && site.links.length) {
+    html += `<div class="site-links">`;
+    site.links.forEach(l => {
+      html += `<a class="site-link" href="${l.url}" target="_blank" rel="noopener">
+        <span class="site-link-icon">🔗</span>
+        <span class="site-link-text">${l.label}</span>
+        <span class="site-link-arrow">›</span>
+      </a>`;
+    });
+    html += `</div>`;
+  }
+
+  // Navigation to next stop
+  if (site.directions && nextSite) {
+    html += `<div class="nav-section">
+      <div class="nav-section-label">Walking to Stop ${id + 1}</div>
+      <div class="nav-steps">`;
+    site.directions.forEach((d, i) => {
+      const isLast = i === site.directions.length - 1;
+      html += `<div class="nav-step">
+        <div class="nav-step-col">
+          <div class="nav-dot">${isLast ? (id+1) : (i+1)}</div>
+          ${!isLast ? '<div class="nav-vline"></div>' : ''}
+        </div>
+        <div class="nav-step-text">
+          <strong>${d.step}</strong>
+          <span>${d.detail}</span>
+          ${d.dist ? `<span class="nav-dist">📍 ${d.dist}</span>` : ''}
+        </div>
+      </div>`;
+    });
+    html += `</div></div>`;
+    html += `<button class="btn-next" onclick="showSite(${nextSite.id})">Continue to Stop ${nextSite.id}: ${nextSite.shortName} →</button>`;
+  } else if (!site.directions) {
+    // Final stop
+    html += `<div class="nav-section" style="text-align:center">
+      <div class="nav-section-label">You have reached the final stop</div>
+      <div style="font-size:32px;margin:12px 0">🏅</div>
+      <div style="font-size:14px;color:rgba(255,255,255,0.75);line-height:1.65;font-weight:600">Congratulations — you have walked through over 1,000 years of Ringwood's history. Every stop on this trail is still alive around you today.</div>
+    </div>
+    <button class="btn-next" onclick="showComplete()">🏆 Complete the Trail</button>`;
+  }
+
+  html += `<button class="btn-map-link" onclick="showMap()">🗺 View Trail Map</button>`;
+  document.getElementById('site-body').innerHTML = html;
+  // Reset scroll to top of page
+  document.getElementById('site-scroll').scrollTop = 0;
+  showScreen('site');
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+//  MAP  (Leaflet — §3.5 floor plan / trail overview)
+// ═══════════════════════════════════════════════════════════════════════
+function initMap() {
+  mapInstance = L.map('leaflet-map', { zoomControl: true, scrollWheelZoom: true });
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    attribution: '© OpenStreetMap contributors', maxZoom: 19
+  }).addTo(mapInstance);
+  mapInstance.setView([50.8462, -1.7935], 16);
+
+  // Trail markers — gold circles
+  SITES.forEach(site => {
+    const icon = L.divIcon({
+      html: `<div style="
+        width:30px;height:30px;border-radius:50%;
+        background:linear-gradient(135deg,#C8962A,#E8B84B);
+        border:2.5px solid #fff;
+        display:flex;align-items:center;justify-content:center;
+        font-family:Nunito,sans-serif;font-weight:900;font-size:13px;color:#1B2B1B;
+        box-shadow:0 2px 8px rgba(0,0,0,0.3);
+      ">${site.id}</div>`,
+      className: '', iconSize: [30, 30], iconAnchor: [15, 15]
+    });
+    L.marker([site.lat, site.lng], { icon }).addTo(mapInstance).bindPopup(`
+      <strong style="font-family:Nunito,sans-serif;font-size:14px;color:#1B3A1B">${site.name}</strong>
+      <br><span style="font-size:11px;color:#666">${site.address}</span>
+      <br><a href="#" onclick="showSite(${site.id});return false;"
+        style="display:inline-block;margin-top:6px;padding:5px 12px;
+        background:#3A7D44;color:#fff;border-radius:10px;font-size:12px;font-weight:800;text-decoration:none">
+        View Stop ${site.id} →</a>
+    `);
+  });
+
+  // Car park markers — blue P
+  CAR_PARKS.forEach(cp => {
+    const pIcon = L.divIcon({
+      html: `<div style="
+        width:26px;height:26px;border-radius:5px;
+        background:#2563eb;border:2px solid #fff;
+        display:flex;align-items:center;justify-content:center;
+        font-weight:900;font-size:13px;color:#fff;
+        box-shadow:0 2px 8px rgba(0,0,0,0.3);
+      ">P</div>`,
+      className: '', iconSize: [26, 26], iconAnchor: [13, 13]
+    });
+    L.marker([cp.lat, cp.lng], { icon: pIcon }).addTo(mapInstance).bindPopup(`
+      <strong style="font-size:13px;color:#1e3a8a">${cp.name}</strong>
+      <br><span style="font-size:11px;color:#666">${cp.spaces}</span>
+      <br><a href="#" onclick="saveStartCp('${cp.id}');showCarParkScreen('${cp.id}');return false;"
+        style="display:inline-block;margin-top:6px;padding:4px 10px;background:#2563eb;color:#fff;border-radius:8px;font-size:11px;font-weight:800;text-decoration:none">
+        Start from here →</a>
+    `);
+  });
+
+  // Dashed trail line
+  const trailCoords = SITES.map(s => [s.lat, s.lng]);
+  L.polyline(trailCoords, { color: '#C8962A', weight: 3, opacity: 0.75, dashArray: '6,4' }).addTo(mapInstance);
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+//  NFC  (§7.3 — NFC landing screen)
+// ═══════════════════════════════════════════════════════════════════════
+let nfcTimer = null;
+let nfcProgress = 0;
+let nfcTargetId = null;
+
+function showNfcScreen(siteId) {
+  const site = SITES.find(s => s.id === siteId);
+  if (!site) { showSite(siteId); return; }
+  nfcTargetId = siteId;
+  document.getElementById('nfc-icon').textContent = site.icon;
+  document.getElementById('nfc-location-name').innerHTML = `Stop <span class="hl">${site.id}</span>`;
+  document.getElementById('nfc-location-meta').textContent = site.name;
+  document.getElementById('nfc-location-addr').textContent = site.address;
+  document.getElementById('nfc-type-badge').textContent = `Heritage Stop ${site.id} of ${SITES.length}`;
+  document.getElementById('nfc-btn').textContent = `View Stop ${site.id} →`;
+  showScreen('nfc');
+  startNfcCountdown();
+}
+
+function startNfcCountdown() {
+  nfcProgress = 0;
+  const ring = document.getElementById('nfc-ring');
+  const circumference = 2 * Math.PI * 22;
+  ring.style.strokeDasharray = circumference;
+  ring.style.strokeDashoffset = circumference;
+  clearInterval(nfcTimer);
+  nfcTimer = setInterval(() => {
+    nfcProgress++;
+    ring.style.strokeDashoffset = Math.max(0, circumference - (nfcProgress / 40) * circumference);
+    const secs = Math.ceil((40 - nfcProgress) / 10);
+    document.getElementById('nfc-tap-hint').textContent =
+      nfcProgress < 40 ? `Auto-continuing in ${secs}s · tap to go now` : 'Opening…';
+    if (nfcProgress >= 40) { clearInterval(nfcTimer); proceedFromNfc(); }
+  }, 100);
+}
+
+function proceedFromNfc() {
+  clearInterval(nfcTimer);
+  if (nfcTargetId) showSite(nfcTargetId);
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+//  URL HASH ROUTING  (§7.5 — QR URL format)
+// ═══════════════════════════════════════════════════════════════════════
+function getHashMode() {
+  const h = window.location.hash.replace('#', '');
+  if (!h) return null;
+  const m = h.match(/^site(\d+)$/);
+  if (m) return { type: 'site', id: parseInt(m[1]) };
+  const p = h.match(/^park-(.+)$/);
+  if (p) return { type: 'carpark', id: p[1] };
+  return null;
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+  loadStartCp();
+  const mode = getHashMode();
+  if (mode) {
+    if (mode.type === 'site') showNfcScreen(mode.id);
+    else if (mode.type === 'carpark') showCarParkScreen(mode.id);
+  } else {
+    showScreen('home');
+  }
+});
+window.addEventListener('hashchange', () => {
+  const mode = getHashMode();
+  if (mode) {
+    if (mode.type === 'site') showSite(mode.id);
+    else if (mode.type === 'carpark') { saveStartCp(mode.id); showCarParkScreen(mode.id); }
+  }
+});
+</script>
+</body>
+</html>
